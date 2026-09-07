@@ -51,20 +51,28 @@ app.get('/api/runs/:id/events', c => {
   return streamSSE(c, async stream => {
     let closed = false;
     stream.onAbort(() => { closed = true; });
-    const send = async (ev: any) => { await stream.writeSSE({ id: String(ev.seq), event: ev.type, data: JSON.stringify(ev) }); after = ev.seq; };
+    // Events are sent WITHOUT an `event:` name so EventSource.onmessage receives them all; only the
+    // control frames (`ping`, `end`) are named, and the client listens for `end` explicitly.
+    const send = async (ev: any) => { await stream.writeSSE({ id: String(ev.seq), data: JSON.stringify(ev) }); after = ev.seq; };
+    const end = () => stream.writeSSE({ event: 'end', data: JSON.stringify({ status: r.summary.status }) });
     for (const ev of r.log.after(after)) await send(ev);
     const finished = () => r.summary.status !== 'running' && r.summary.status !== 'queued';
-    if (finished()) { await stream.writeSSE({ event: 'end', data: JSON.stringify({ status: r.summary.status }) }); return; }
+    if (finished()) { await end(); return; }
     const queue: any[] = []; let wake: (() => void) | undefined;
     const unsub = r.log.subscribe(ev => { queue.push(ev); wake?.(); });
     try {
       while (!closed) {
         while (queue.length) await send(queue.shift());
-        if (finished() && !queue.length) { await stream.writeSSE({ event: 'end', data: JSON.stringify({ status: r.summary.status }) }); break; }
-        await Promise.race([new Promise<void>(res => { wake = res; }), stream.sleep(15000).then(() => stream.writeSSE({ event: 'ping', data: '' }))]);
-        wake = undefined;
+        if (finished() && !queue.length) { await end(); break; }
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const woke = await Promise.race([
+          new Promise<boolean>(res => { wake = () => res(true); }),
+          new Promise<boolean>(res => { timer = setTimeout(() => res(false), 15000); }),
+        ]);
+        wake = undefined; if (timer) clearTimeout(timer);
+        if (!woke && !closed) await stream.writeSSE({ event: 'ping', data: String(Date.now()) });
       }
-    } finally { unsub(); }
+    } catch { /* client went away mid-write */ } finally { unsub(); }
   });
 });
 

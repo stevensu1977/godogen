@@ -39,6 +39,11 @@ export function useRunStream(runId: string): [RunState, React.Dispatch<Action>, 
         dispatch({ type: 'event', event: ev, live: !replaying });
         if (ev.type === 'run.finished') { es?.close(); dispatch({ type: 'connection', connection: 'closed' }); }
       };
+      es.addEventListener('end', () => {
+        // Server closed a finished stream on purpose; don't let the browser reconnect forever.
+        es?.close();
+        dispatch({ type: 'connection', connection: 'closed' });
+      });
       es.onerror = () => {
         if (disposed) return;
         const run = stateRef.current.run;
