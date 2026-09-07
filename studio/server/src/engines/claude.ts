@@ -5,7 +5,7 @@ import { childEnv, type Engine, type EngineResult, type EngineStart } from './ty
 /** Claude Code as the engine, through the Agent SDK (which drives the installed `claude` binary). */
 export const claudeEngine: Engine = {
   kind: 'claude',
-  async run({ workspace, prompt, resumeSessionId, model, emit, onSession, signal }: EngineStart): Promise<EngineResult> {
+  async run({ workspace, prompt, resumeSessionId, model, env, emit, onSession, signal }: EngineStart): Promise<EngineResult> {
     const st = newMapState(`${Date.now().toString(36)}-`);
     const abort = new AbortController();
     signal.addEventListener('abort', () => abort.abort(), { once: true });
@@ -16,7 +16,7 @@ export const claudeEngine: Engine = {
         prompt,
         options: {
           cwd: workspace,
-          env: childEnv(),
+          env: childEnv(env),
           permissionMode: 'bypassPermissions',
           allowDangerouslySkipPermissions: true,
           includePartialMessages: true,

@@ -20,6 +20,20 @@ function autoCommit(workspace: string, turn: RunTurn, runTitle: string): { commi
   return { commit: git('rev-parse', '--short', 'HEAD'), files };
 }
 
+/**
+ * GDScript Godot runs must see the standard Godot build as `godot` (the .NET build on PATH refuses Web export and
+ * uses different templates). A per-runs-root shim directory with a `godot` symlink is prepended to PATH.
+ */
+function engineEnv(summary: RunSummary): Record<string, string> {
+  if (summary.engine !== 'godot') return {};
+  const bin = godotBinaryFor(summary.workspace);
+  const shim = join(RUNS_ROOT, '.bin-gdscript'); mkdirSync(shim, { recursive: true });
+  const link = join(shim, 'godot');
+  try { unlinkSync(link); } catch { /* absent */ }
+  try { symlinkSync(bin, link); } catch { /* leave as is */ }
+  return { PATH: shim, GODOT_BIN: bin };
+}
+
 function targetsBlock(targets: PublishTarget[], engine: string): string {
   if (!targets.length) return '';
   const impl = targets.filter(t => IMPLEMENTED_TARGETS.includes(t)); const later = targets.filter(t => !IMPLEMENTED_TARGETS.includes(t));
@@ -38,7 +52,8 @@ import { fileURLToPath } from 'node:url';
 import { customAlphabet } from 'nanoid';
 const shortId = customAlphabet('23456789abcdefghjkmnpqrstuvwxyz', 6);
 import { IMPLEMENTED_TARGETS, type Artifact, type CommitDetail, type CommitSummary, type CreateRunRequest, type PublishTarget, type RunSummary, type RunTurn, type StudioEventInput, type TurnRequest } from '@goscene/shared';
-import { ensurePresets, publishTarget } from './publisher.js';
+import { ensurePresets, godotBinaryFor, publishTarget } from './publisher.js';
+import { symlinkSync, unlinkSync } from 'node:fs';
 import { commitDetail, history, restoreTo } from './git.js';
 import { EventLog } from './events.js';
 import { claudeEngine } from './engines/claude.js';
@@ -194,7 +209,7 @@ export class RunManager {
     const watcher = watchWorkspace(r.summary.workspace, (a, change) => emit({ type: 'artifact', artifact: a, change }));
     r.closeWatcher = () => { void watcher.close(); };
     const budgetGuard = budgetUsd ? r.log.subscribe(ev => { if (ev.type === 'cost' && ev.costUsd > budgetUsd) { emit({ type: 'log', level: 'warn', text: `Budget $${budgetUsd} exceeded, cancelling` }); r.abort?.abort(); } }) : undefined;
-    const result = await engine.run({ workspace: r.summary.workspace, prompt: turn.text, model: r.summary.model, emit, signal: r.abort.signal, resumeSessionId, onSession: sid => { r.summary.sessionId = sid; this.save(r); } });
+    const result = await engine.run({ workspace: r.summary.workspace, prompt: turn.text, model: r.summary.model, env: engineEnv(r.summary), emit, signal: r.abort.signal, resumeSessionId, onSession: sid => { r.summary.sessionId = sid; this.save(r); } });
     budgetGuard?.();
     // Give the watcher a moment to flush the last files, then close.
     await new Promise(res => setTimeout(res, 1500));

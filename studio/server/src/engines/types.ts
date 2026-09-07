@@ -8,6 +8,8 @@ export interface EngineStart {
   prompt: string;
   resumeSessionId?: string;
   model?: string;
+  /** Extra env for the engine process; PATH entries are prepended. */
+  env?: Record<string, string>;
   emit: Emit;
   onSession?: (sessionId: string) => void;
   signal: AbortSignal;
@@ -18,13 +20,14 @@ export interface EngineResult { status: 'finished' | 'failed' | 'cancelled'; cos
 export interface Engine { kind: 'claude' | 'codex'; run(start: EngineStart): Promise<EngineResult> }
 
 /** Env for child engines: strip the nesting markers of the Claude Code session that may be hosting us. */
-export function childEnv(): Record<string, string> {
+export function childEnv(extra: Record<string, string> = {}): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined) env[k] = v;
   delete env.CLAUDECODE; delete env.CLAUDE_CODE_CHILD_SESSION; delete env.CLAUDE_CODE_MESSAGING_SOCKET; delete env.CLAUDE_CODE_MESSAGING_TOKEN;
   env.DOTNET_ROOT ??= `${env.HOME}/.dotnet`;
   if (!env.PATH?.includes('/.dotnet')) env.PATH = `${env.HOME}/.dotnet:${env.PATH}`;
   env.BLENDER_BIN ??= `${env.HOME}/godot-agent/.tools/blender/blender`;
+  for (const [k, v] of Object.entries(extra)) env[k] = k === 'PATH' ? `${v}:${env.PATH}` : v;
   return env;
 }
 

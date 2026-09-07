@@ -8,14 +8,14 @@ import { childEnv, tail, type Engine, type EngineResult, type EngineStart } from
  */
 export const codexEngine: Engine = {
   kind: 'codex',
-  run({ workspace, prompt, resumeSessionId, model, emit, onSession, signal }: EngineStart): Promise<EngineResult> {
+  run({ workspace, prompt, resumeSessionId, model, env, emit, onSession, signal }: EngineStart): Promise<EngineResult> {
     return new Promise((resolve) => {
       const t0 = Date.now();
       let turns = 0; let costUsd = 0; let summary = ''; let msgN = 0; const msgPrefix = `${Date.now().toString(36)}-`;
       const m = model ?? process.env.STUDIO_CODEX_MODEL;
       const common = ['--json', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '-C', workspace, ...(m ? ['-m', m] : [])];
       const args = resumeSessionId ? ['exec', 'resume', resumeSessionId, ...common, '-'] : ['exec', ...common, '-'];
-      const child = spawn('codex', args, { env: childEnv(), cwd: workspace, stdio: ['pipe', 'pipe', 'pipe'] });
+      const child = spawn('codex', args, { env: childEnv(env), cwd: workspace, stdio: ['pipe', 'pipe', 'pipe'] });
       child.stdin.end(prompt);
       signal.addEventListener('abort', () => child.kill('SIGTERM'), { once: true });
       let buf = '';
