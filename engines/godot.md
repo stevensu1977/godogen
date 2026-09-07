@@ -90,8 +90,10 @@ constraints while building; Studio does the packaging afterwards with `godot --h
   right-click (browser menu) or on `Input.warp_mouse`.
 - **macOS / Android / iOS (arm64)**: set `rendering/textures/vram_compression/import_etc2_astc=true` in
   `project.godot` or the export refuses to run ("Cannot export for universal or arm64 if ETC2 ASTC texture format is
-  disabled"). macOS is exported from Linux as a universal `.zip` with Godot's built-in ad-hoc signature — required for
-  Apple Silicon to launch it at all; without notarization the first launch is right-click → Open.
+  disabled"). macOS is exported from Linux as a universal `.zip`; leave `codesign/codesign=0` — Studio re-signs the `.app` with
+  rcodesign (Godot's built-in signer produces entitlements macOS refuses, and the process is killed at launch). A
+  bundle identifier is required. Without notarization the customer's first launch goes through System Settings →
+  Privacy & Security → Open Anyway.
 - **Desktop**: `forward_plus` is fine if Web is not in the list; keep a fixed 1280×720 default window with
   `stretch/mode="canvas_items"` so HUD scales.
 - **Mobile (later)**: `mobile` renderer, touch controls, `stretch/aspect="expand"`, portrait/landscape declared.

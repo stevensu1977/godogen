@@ -2,6 +2,8 @@
 
 Use this variant only when Web is not a target: Godot 4 cannot export C# projects to the web. Default is the GDScript guide (`godot.md`).
 
+macOS: the .NET runtime JITs and loads its own dylibs, so the app needs the `allow-jit`, `allow-unsigned-executable-memory`, `allow-dyld-environment-variables` and `disable-library-validation` entitlements and every nested Mach-O signed; Studio does this with rcodesign after export — do not enable Godot's own codesign. See `docs/publishing.md` for the full pitfall list.
+
 Stack: **Godot 4 (.NET / Mono build)**, **C#**. All Godot C# classes must be `partial`.
 
 ## Project shape

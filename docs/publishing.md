@@ -64,12 +64,49 @@ load-and-instantiate smoke test; the GDScript-specific traps live in `engines/go
 - Verification: headless Chromium (`--use-angle=swiftshader`) loads the URL, waits up to 60 s for the Godot
   canvas and for the engine's "Godot Engine v…" console line, screenshots to `screenshots/publish/web.png`.
 
-## Lessons from the first publishes (2026-09-07)
+## Pitfalls, verified on real machines (2026-09-07)
 
-- arm64 targets (macOS universal, Android, iOS) refuse to export unless `rendering/textures/vram_compression/import_etc2_astc=true`; Studio sets it.
-- macOS from Linux: Godot's built-in signer writes a DER entitlements blob that AMFI rejects ("failed parsing DER entitlements" → the process is killed on launch) and Godot refuses its rcodesign mode for apps with embedded dylibs (.NET). Studio therefore exports unsigned (`codesign/codesign=0`) and re-signs the `.app` with `rcodesign` (ad-hoc, hardened runtime, JIT/unsigned-memory/dyld-env/library-validation entitlements, every nested Mach-O), then re-zips. A bundle identifier is mandatory. Un-notarized apps still need System Settings → Privacy & Security → Open Anyway on first launch (macOS 15 removed the right-click bypass).
-- C# projects: the .NET export needs a `.sln` next to the `.csproj` (Studio creates one if missing) and the separate .NET export templates; the .NET Godot build itself cannot export Web.
-- Godot rewrites `export_presets.cfg` on export, so Studio upserts its managed option keys every time instead of writing presets once.
+Everything below was hit while publishing Duck Dash (GDScript) and Duckov (C#) from this Linux host to a Mac
+running macOS 15. Each one either failed silently or with a message that pointed elsewhere.
+
+### Godot export (any target)
+
+| Symptom | Cause | Fix (Studio does this) |
+|---|---|---|
+| Web preset missing / `godot` refuses Web export | The `godot` on PATH is the .NET build, which cannot export Web at all | GDScript runs get the standard build as `godot` via a PATH shim; C# runs never target Web |
+| "Cannot export for universal or arm64 if ETC2 ASTC texture format is disabled" | arm64 targets (macOS universal, Android, iOS) need `rendering/textures/vram_compression/import_etc2_astc=true` | Set in `project.godot` before export |
+| Preset options revert after a failed export | Godot rewrites `export_presets.cfg` on export | Upsert the managed option keys every publish instead of writing presets once |
+| "Invalid bundle identifier: Identifier is missing" | macOS export needs `application/bundle_identifier` | Preset sets `ai.goscene.game` (customer-specific later) |
+
+### C# / .NET specifics
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Export "completed with warnings", app crashes or shows "can't be opened"; `Resources/` has only `.pck` | No `.sln` next to the `.csproj`: Godot skips the .NET publish but still writes a package | Create `<Project>.sln` (`dotnet new sln` + `dotnet sln add`); treat "Export .NET Project" errors as failure |
+| `dotnet: not found`, hostfxr crash in the packager | Packager env lacked `~/.dotnet` | Packagers use the same env as engines (DOTNET_ROOT, PATH) |
+| "No export template found" for the .NET build | .NET Godot needs its own templates (`…_mono_export_templates.tpz` → `export_templates/<ver>.stable.mono/`) | Install both template sets |
+
+### macOS signing from Linux (the expensive one)
+
+| Symptom on the Mac | Cause | Fix |
+|---|---|---|
+| Terminal launch prints only `killed`; kernel log: "AMFI could not load its entitlements: failed parsing DER entitlements" | Godot's built-in ad-hoc signer emits a DER entitlements blob AMFI rejects. `codesign --verify --deep --strict` still says "valid" — it does not check that blob | Export with `codesign/codesign=0`, then re-sign the `.app` with `rcodesign sign --code-signature-flags runtime -e entitlements.plist` (ad-hoc, recursive) and re-zip |
+| "'rcodesign' doesn't support signing applications with embedded dynamic libraries" | Godot refuses its own rcodesign mode for .NET apps | Same: sign outside Godot with rcodesign directly |
+| Process killed at launch even with a valid signature (.NET) | Hardened runtime blocks CoreCLR's JIT and dylib loading | Entitlements: `allow-jit`, `allow-unsigned-executable-memory`, `allow-dyld-environment-variables`, `disable-library-validation` |
+| "Apple could not verify … is free of malware" | Not notarized (needs an Apple Developer ID; phase 3) | User: System Settings → Privacy & Security → Open Anyway. macOS 15 removed the right-click → Open bypass |
+| `xattr -cr` says "Operation not permitted" | `com.apple.provenance` cannot be removed; the quarantine flag usually already is | Use `xattr -dr com.apple.quarantine <app>` |
+| Path shows `/private/var/folders/…/AppTranslocation/…` in logs | App Translocation: still quarantined, launched from Downloads | Remove quarantine or move the app out of Downloads |
+| The customer downloaded a package that later turned out broken | A publish reported success before the failure mode was known | Desktop packages need a post-export launch check like the web one (open item) |
+
+How to read a signature without a Mac: `rcodesign print-signature-info <binary>` shows flags (`ADHOC | RUNTIME`),
+the `Entitlements` and `DER Entitlements` slots, and works on nested dylibs too.
+
+### Web
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Game stuck on the loading bar, console "SharedArrayBuffer is not defined" | Threaded export served without COOP/COEP | Single-threaded export by default; `/play/` sends COOP/COEP anyway |
+| Nothing renders headlessly | Software WebGL | `--use-angle=swiftshader` and wait for the "Godot Engine v…" console line |
 
 ## Open decisions
 
