@@ -45,6 +45,14 @@ instructions (`POST /api/runs/:id/turns`) while the run is not running. The engi
 `resume`, Codex `exec resume`) so the agent keeps its memory of earlier turns; events append to the same log with a
 `turn.started` marker, cost accumulates across turns, and `run.finished` closes each turn rather than the run.
 
+## One commit per turn
+
+When a turn ends, Studio stages everything in the workspace and commits it as `Turn N: <instruction>` with the
+full instruction, status and cost in the body (author `Godogen Studio`, override with `STUDIO_GIT_AUTHOR`). The
+short hash lands on the turn (`turns_history[].commit`), in the `run.finished` event and on the timeline card, so
+every turn is a reviewable, revertable step regardless of whether the agent committed anything itself. A clean
+tree logs "nothing to commit". Published workspaces track `assets/` and ignore `screenshots/`, `.godot/`, build output.
+
 ## Event model
 
 Eight event types, defined once in `shared/src/index.ts`, persisted per run as append-only `events.jsonl`, served

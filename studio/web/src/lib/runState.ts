@@ -10,7 +10,7 @@ export type TimelineItem =
   | { kind: 'phase'; key: string; phase: Phase; detail?: string; ts: string }
   | { kind: 'needs_input'; key: string; prompt: string; options?: string[]; ts: string; answered?: string }
   | { kind: 'log'; key: string; level: 'info' | 'warn' | 'error'; text: string; ts: string }
-  | { kind: 'finished'; key: string; status: Exclude<RunStatus, 'queued' | 'running'>; summary?: string; error?: string; durationMs: number; ts: string }
+  | { kind: 'finished'; key: string; status: Exclude<RunStatus, 'queued' | 'running'>; summary?: string; error?: string; durationMs: number; ts: string; commit?: string; commitFiles?: number }
   | { kind: 'turn'; key: string; index: number; text: string; ts: string };
 
 export type Connection = 'connecting' | 'live' | 'reconnecting' | 'closed';
@@ -142,7 +142,7 @@ function applyEvent(state: RunState, ev: StudioEvent, live: boolean): RunState {
       return {
         ...base, run, phase, costUsd: ev.costUsd, turns: ev.turns, pendingInput: undefined,
         finished: { status: ev.status, summary: ev.summary, error: ev.error, durationMs: ev.durationMs },
-        items: [...base.items, { kind: 'finished', key, status: ev.status, summary: ev.summary, error: ev.error, durationMs: ev.durationMs, ts: ev.ts }],
+        items: [...base.items, { kind: 'finished', key, status: ev.status, summary: ev.summary, error: ev.error, durationMs: ev.durationMs, ts: ev.ts, commit: ev.commit, commitFiles: ev.commitFiles }],
       };
     }
   }

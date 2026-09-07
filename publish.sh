@@ -140,7 +140,8 @@ if [ ! -f "$TARGET/.gitignore" ]; then
         printf '%s\n' "$ENGINE_GUIDE_FILE" multiplayer.md
         case "$ENGINE" in
             godot)
-                printf 'assets\nscreenshots\n.godot\n*.import\nbin/\nobj/\n'
+                # assets/ is tracked: generated models and textures are part of the deliverable.
+                printf 'screenshots\n.godot\n*.import\n*.uid\nbin/\nobj/\n'
                 ;;
             bevy)
                 printf '/target\n/screenshots\n'

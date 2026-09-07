@@ -106,6 +106,7 @@ function Item({ item, runId, dispatch }: { item: TimelineItem; runId: string; di
             <div className="h">{item.status === 'finished' ? '✓ Turn finished' : item.status === 'cancelled' ? '⏹ Turn cancelled' : '✕ Turn failed'} <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>in {shortDuration(item.durationMs)}</span></div>
             {item.summary && <div className="s">{item.summary}</div>}
             {item.error && <pre>{item.error}</pre>}
+            {item.commit && <div className="commit">⎇ committed <code>{item.commit}</code> · {item.commitFiles} file{item.commitFiles === 1 ? '' : 's'} changed this turn</div>}
           </div>
         </div>
       );

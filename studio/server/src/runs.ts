@@ -1,6 +1,25 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 
+/**
+ * One commit per turn: everything the agent changed on the workspace during this turn, whether or not the agent
+ * committed anything itself. Returns undefined when the tree is clean.
+ */
+function autoCommit(workspace: string, turn: RunTurn, runTitle: string): { commit: string; files: number } | undefined {
+  const git = (...args: string[]) => execFileSync('git', ['-C', workspace, ...args], { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
+  try { git('rev-parse', '--is-inside-work-tree'); } catch { git('init', '-q'); }
+  git('add', '-A');
+  const staged = git('diff', '--cached', '--name-only');
+  if (!staged) return undefined;
+  const files = staged.split('\n').filter(Boolean).length;
+  const first = turn.text.split('\n').find(l => l.trim())?.trim().replace(/^#+\s*/, '') ?? 'turn';
+  const subject = `Turn ${turn.index}: ${first}`.slice(0, 72);
+  const body = `${runTitle}\n\nInstruction:\n${turn.text.trim()}\n\nStatus: ${turn.status} · cost $${turn.costUsd.toFixed(2)} · committed by Godogen Studio`;
+  const author = process.env.STUDIO_GIT_AUTHOR ?? 'Godogen Studio <studio@godogen.local>';
+  git('-c', `user.name=${author.replace(/\s*<.*$/, '')}`, '-c', `user.email=${/<(.*)>/.exec(author)?.[1] ?? 'studio@godogen.local'}`, 'commit', '-q', '-m', subject, '-m', body);
+  return { commit: git('rev-parse', '--short', 'HEAD'), files };
+}
+
 function current(r: RunRecord): RunTurn | undefined { const h = r.summary.turns_history; return h && h.length ? h[h.length - 1] : undefined; }
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -121,8 +140,14 @@ export class RunManager {
     if (result.costUsd) { turn.costUsd = result.costUsd; r.summary.costUsd = r.costBase + result.costUsd; }
     if (result.turns) r.summary.turns = result.turns;
     turn.status = result.status; turn.finishedAt = r.summary.finishedAt;
+    let committed: { commit: string; files: number } | undefined;
+    try {
+      committed = autoCommit(r.summary.workspace, turn, r.summary.title);
+      if (committed) { turn.commit = committed.commit; turn.commitFiles = committed.files; emit({ type: 'log', level: 'info', text: `Committed ${committed.commit}: turn ${turn.index}, ${committed.files} file${committed.files === 1 ? '' : 's'}` }); }
+      else emit({ type: 'log', level: 'info', text: `Turn ${turn.index}: nothing to commit` });
+    } catch (e: any) { emit({ type: 'log', level: 'warn', text: `Auto-commit failed: ${e?.stderr?.toString?.() || e?.message || e}` }); }
     this.save(r);
-    emit({ type: 'run.finished', status: result.status, costUsd: r.summary.costUsd, turns: r.summary.turns, durationMs: result.durationMs, summary: result.summary, error: result.error, turnId: turn.id });
+    emit({ type: 'run.finished', status: result.status, costUsd: r.summary.costUsd, turns: r.summary.turns, durationMs: result.durationMs, summary: result.summary, error: result.error, turnId: turn.id, commit: committed?.commit, commitFiles: committed?.files });
   }
 
   cancel(id: string) { const r = this.runs.get(id); if (!r) return undefined; r.abort?.abort(); r.summary.status = 'cancelled'; return r.summary; }

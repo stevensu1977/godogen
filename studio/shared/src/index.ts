@@ -52,6 +52,10 @@ export interface RunTurn {
   finishedAt?: string;
   status: RunStatus;
   costUsd: number;
+  /** Git commit created by Studio at the end of the turn (short hash), if the workspace changed. */
+  commit?: string;
+  /** Files in that commit. */
+  commitFiles?: number;
 }
 
 export interface RunSummary {
@@ -87,7 +91,7 @@ interface Base {
 export type StudioEvent =
   | (Base & { type: 'run.started'; run: RunSummary })
   /** A turn ended. Not terminal for the run: a follow-up turn may start later (see turn.started). */
-  | (Base & { type: 'run.finished'; status: Exclude<RunStatus, 'queued' | 'running'>; costUsd: number; turns: number; durationMs: number; summary?: string; error?: string; turnId?: string })
+  | (Base & { type: 'run.finished'; status: Exclude<RunStatus, 'queued' | 'running'>; costUsd: number; turns: number; durationMs: number; summary?: string; error?: string; turnId?: string; commit?: string; commitFiles?: number })
   /** A follow-up turn started on the same workspace, resuming the engine session when possible. */
   | (Base & { type: 'turn.started'; turnId: string; index: number; text: string })
   /** Assistant text for humans, streamed. `final` closes the message. */
