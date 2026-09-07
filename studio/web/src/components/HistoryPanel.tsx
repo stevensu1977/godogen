@@ -81,7 +81,7 @@ function CommitModal({ runId, hash, canRestore, onClose, onRestored }: { runId: 
                 {d.files.map((f) => <div key={f.path} className="cm-file"><span className={`st ${f.status[0]}`}>{f.status[0]}</span><span className="p">{f.path}</span><span className="add">+{f.additions}</span><span className="del">−{f.deletions}</span></div>)}
               </div>
             ) : (
-              <pre className="cm-diff">{d.diff.split('\n').map((l, i) => <span key={i} className={l.startsWith('+') && !l.startsWith('+++') ? 'a' : l.startsWith('-') && !l.startsWith('---') ? 'd' : l.startsWith('@@') ? 'h' : l.startsWith('diff ') ? 'f' : ''}>{l}{'\n'}</span>)}</pre>
+              <div className="cm-diff">{d.diff.split('\n').map((l, i) => <div key={i} className={`ln ${l.startsWith('+') && !l.startsWith('+++') ? 'a' : l.startsWith('-') && !l.startsWith('---') ? 'd' : l.startsWith('@@') ? 'h' : l.startsWith('diff ') ? 'f' : ''}`}>{l || ' '}</div>)}</div>
             )}
           </>
         )}
