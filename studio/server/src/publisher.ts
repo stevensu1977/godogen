@@ -24,7 +24,10 @@ const PRESETS: Record<'web' | 'linux' | 'windows' | 'macos', { name: string; pla
   windows: { name: 'Windows', platform: 'Windows Desktop', path: 'build/windows/game.exe',  options: 'binary_format/architecture="x86_64"\n' },
   // Built-in ad-hoc signing (codesign=1) works from Linux and is required for the app to launch on Apple Silicon at all.
   // Not notarized: first launch needs right-click → Open (or `xattr -cr`).
-  macos:   { name: 'macOS',   platform: 'macOS',           path: 'build/macos/game.zip',    options: 'binary_format/architecture="universal"\ncodesign/codesign=1\ncodesign/identity=""\nnotarization/notarization=0\napplication/bundle_identifier="ai.goscene.game"\napplication/short_version="1.0"\napplication/version="1.0"\n' },
+  macos:   { name: 'macOS',   platform: 'macOS',           path: 'build/macos/game.zip',    options: 'binary_format/architecture="universal"\ncodesign/codesign=1\ncodesign/identity=""\nnotarization/notarization=0\napplication/bundle_identifier="ai.goscene.game"\napplication/short_version="1.0"\napplication/version="1.0"\n'
+    // .NET (CoreCLR) JITs at runtime and loads its own dylibs: without these entitlements macOS kills the process at launch
+    // ("The application can't be opened"). Harmless for GDScript, needed for GDExtension libraries too.
+    + 'codesign/entitlements/allow_jit_code_execution=true\ncodesign/entitlements/allow_unsigned_executable_memory=true\ncodesign/entitlements/allow_dyld_environment_variables=true\ncodesign/entitlements/disable_library_validation=true\n' },
 };
 
 /** arm64 targets (macOS universal, Android, iOS) refuse to export unless ETC2/ASTC texture import is on. */
