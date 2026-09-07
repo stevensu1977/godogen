@@ -6,7 +6,7 @@ import { isTerminal } from './format';
 
 /**
  * Loads a run + its artifacts and subscribes to its SSE stream. EventSource reconnects on its own
- * (sending Last-Event-ID); we close it ourselves once `run.finished` arrives so a finished run
+ * (sending Last-Event-ID). A run.finished only ends a turn; the server sends an `end` frame when the run is idle,
  * doesn't loop reconnecting after the server ends the stream.
  */
 export function useRunStream(runId: string): [RunState, React.Dispatch<Action>, () => void] {
@@ -37,7 +37,7 @@ export function useRunStream(runId: string): [RunState, React.Dispatch<Action>, 
         if (replayTimer) clearTimeout(replayTimer);
         replayTimer = setTimeout(() => { replaying = false; }, 400);
         dispatch({ type: 'event', event: ev, live: !replaying });
-        if (ev.type === 'run.finished') { es?.close(); dispatch({ type: 'connection', connection: 'closed' }); }
+        // run.finished ends a turn, not the stream: the server sends an `end` frame when the run is idle.
       };
       es.addEventListener('end', () => {
         // Server closed a finished stream on purpose; don't let the browser reconnect forever.
