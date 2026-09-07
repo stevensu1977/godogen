@@ -21,7 +21,7 @@ npm run dev:server            # http://localhost:4700  (runs live in ~/godogen-r
 npm run dev:web               # http://localhost:5173  (proxies /api to 4700)
 ```
 
-Requirements on the host: the `claude` CLI logged in (Bedrock works: `CLAUDE_CODE_USE_BEDROCK=1`), and whatever
+Requirements on the host: `rcodesign` (apple-codesign) at `~/.local/bin/rcodesign` or `STUDIO_RCODESIGN` for macOS packages; .NET export templates in `export_templates/<ver>.stable.mono/` for C# projects; the `claude` CLI logged in (Bedrock works: `CLAUDE_CODE_USE_BEDROCK=1`), and whatever
 the engine guide needs (Godot .NET on PATH, .NET 9 in `~/.dotnet`, Blender at `BLENDER_BIN`, xvfb, ffmpeg).
 Default Claude model is `global.anthropic.claude-fable-5-1`; override with `STUDIO_CLAUDE_MODEL` or per run.
 

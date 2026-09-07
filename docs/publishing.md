@@ -67,7 +67,7 @@ load-and-instantiate smoke test; the GDScript-specific traps live in `engines/go
 ## Lessons from the first publishes (2026-09-07)
 
 - arm64 targets (macOS universal, Android, iOS) refuse to export unless `rendering/textures/vram_compression/import_etc2_astc=true`; Studio sets it.
-- macOS from Linux: Godot's built-in ad-hoc signature (`codesign/codesign=1`) is enough for the app to launch on Apple Silicon; a bundle identifier is mandatory; the first launch of an un-notarized app is right-click → Open.
+- macOS from Linux: Godot's built-in signer writes a DER entitlements blob that AMFI rejects ("failed parsing DER entitlements" → the process is killed on launch) and Godot refuses its rcodesign mode for apps with embedded dylibs (.NET). Studio therefore exports unsigned (`codesign/codesign=0`) and re-signs the `.app` with `rcodesign` (ad-hoc, hardened runtime, JIT/unsigned-memory/dyld-env/library-validation entitlements, every nested Mach-O), then re-zips. A bundle identifier is mandatory. Un-notarized apps still need System Settings → Privacy & Security → Open Anyway on first launch (macOS 15 removed the right-click bypass).
 - C# projects: the .NET export needs a `.sln` next to the `.csproj` (Studio creates one if missing) and the separate .NET export templates; the .NET Godot build itself cannot export Web.
 - Godot rewrites `export_presets.cfg` on export, so Studio upserts its managed option keys every time instead of writing presets once.
 

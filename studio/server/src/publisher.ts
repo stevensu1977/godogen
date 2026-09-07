@@ -24,7 +24,9 @@ const PRESETS: Record<'web' | 'linux' | 'windows' | 'macos', { name: string; pla
   windows: { name: 'Windows', platform: 'Windows Desktop', path: 'build/windows/game.exe',  options: 'binary_format/architecture="x86_64"\n' },
   // Built-in ad-hoc signing (codesign=1) works from Linux and is required for the app to launch on Apple Silicon at all.
   // Not notarized: first launch needs right-click → Open (or `xattr -cr`).
-  macos:   { name: 'macOS',   platform: 'macOS',           path: 'build/macos/game.zip',    options: 'binary_format/architecture="universal"\ncodesign/codesign=1\ncodesign/identity=""\nnotarization/notarization=0\napplication/bundle_identifier="ai.goscene.game"\napplication/short_version="1.0"\napplication/version="1.0"\n'
+  macos:   { name: 'macOS',   platform: 'macOS',           path: 'build/macos/game.zip',    options: 'binary_format/architecture="universal"\ncodesign/codesign=0\ncodesign/identity=""\nnotarization/notarization=0\napplication/bundle_identifier="ai.goscene.game"\napplication/short_version="1.0"\napplication/version="1.0"\n'
+    // codesign=0: Godot's built-in signer writes a DER entitlements blob AMFI cannot parse ("failed parsing DER entitlements" → SIGKILL on
+    // Apple Silicon) and refuses rcodesign for apps with embedded dylibs (.NET). Studio re-signs the exported .app with rcodesign instead.
     // .NET (CoreCLR) JITs at runtime and loads its own dylibs: without these entitlements macOS kills the process at launch
     // ("The application can't be opened"). Harmless for GDScript, needed for GDExtension libraries too.
     + 'codesign/entitlements/allow_jit_code_execution=true\ncodesign/entitlements/allow_unsigned_executable_memory=true\ncodesign/entitlements/allow_dyld_environment_variables=true\ncodesign/entitlements/disable_library_validation=true\n' },
@@ -113,6 +115,40 @@ export async function ensureSolution(workspace: string): Promise<string | undefi
   return `${name}.sln`;
 }
 
+const MAC_ENTITLEMENTS = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>com.apple.security.cs.allow-jit</key><true/>
+<key>com.apple.security.cs.allow-unsigned-executable-memory</key><true/>
+<key>com.apple.security.cs.allow-dyld-environment-variables</key><true/>
+<key>com.apple.security.cs.disable-library-validation</key><true/>
+</dict></plist>
+`;
+
+/**
+ * Ad-hoc sign the exported macOS bundle with rcodesign (recursively: main binary + every nested Mach-O), with
+ * hardened-runtime flags and the entitlements .NET / GDExtension need, then re-zip. Returns a log fragment.
+ */
+async function resignMacZip(workspace: string, zipRel: string): Promise<{ ok: boolean; log: string }> {
+  const rcodesign = process.env.STUDIO_RCODESIGN ?? join(homedir(), '.local', 'bin', 'rcodesign');
+  if (!existsSync(rcodesign)) return { ok: false, log: `rcodesign not found at ${rcodesign}; bundle left with Godot's signature` };
+  const zipAbs = join(workspace, zipRel);
+  const tmp = join(workspace, 'build', '.macsign'); await execFileP('rm', ['-rf', tmp]); mkdirSync(tmp, { recursive: true });
+  let log = '';
+  try {
+    await execFileP('unzip', ['-q', zipAbs, '-d', tmp]);
+    const app = readdirSync(tmp).find(f => f.endsWith('.app')); if (!app) return { ok: false, log: 'no .app in export zip' };
+    const ent = join(tmp, 'entitlements.plist'); writeFileSync(ent, MAC_ENTITLEMENTS);
+    const r = await execFileP(rcodesign, ['sign', '--code-signature-flags', 'runtime', '-e', ent, join(tmp, app)], { maxBuffer: 16 * 1024 * 1024 });
+    log += `$ rcodesign sign --code-signature-flags runtime -e entitlements.plist "${app}"\n${(r.stderr + r.stdout).split('\n').slice(-6).join('\n')}\n`;
+    await execFileP('rm', ['-f', zipAbs]);
+    await execFileP('zip', ['-qry', zipAbs, app], { cwd: tmp });
+    log += `re-zipped ${zipRel}`;
+    return { ok: true, log };
+  } catch (e: any) { return { ok: false, log: log + `\nrcodesign failed: ${e?.stderr || e?.message || e}` }; }
+  finally { await execFileP('rm', ['-rf', tmp]).catch(() => undefined); }
+}
+
 export interface PublishContext { workspace: string; runId: string; playBase: string; log: (text: string) => void }
 
 export async function publishTarget(ctx: PublishContext, target: PublishTarget): Promise<PublishResult> {
@@ -138,6 +174,7 @@ export async function publishTarget(ctx: PublishContext, target: PublishTarget):
   // macOS export is already a zip containing the .app; other targets get zipped here.
   const archive = target === 'macos' ? preset.path : `build/${target}.zip`;
   if (target !== 'macos') { try { await zipDir(ctx.workspace, outDir, archive); } catch (e: any) { log += `\nzip failed: ${e.message}`; } }
+  if (target === 'macos') { const rs = await resignMacZip(ctx.workspace, preset.path); log += `\n\n${rs.log}`; if (!rs.ok) return done(false, { path: preset.path }, log); }
   if (target !== 'web') return done(true, { path: preset.path, archive }, log);
 
   // Web: host it and prove it renders in a headless browser.
