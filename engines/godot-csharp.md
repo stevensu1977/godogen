@@ -8,6 +8,7 @@ Stack: **Godot 4 (.NET / Mono build)**, **C#**. All Godot C# classes must be `pa
 
 - `project.godot` — config, input actions, display, physics. **Match version-sensitive fields to the installed toolchain** (`config_version`, and in `.csproj` the `Godot.NET.Sdk/...` version + `TargetFramework`) — run `godot --version` / `dotnet --version` and don't hardcode values from memory; on an existing project preserve them. For 3D, set `3d/physics_engine="Jolt Physics"` and a fixed `physics_ticks_per_second`.
 - `{ProjectName}.csproj` — name must match `assembly_name`; `<EnableDynamicLoading>true</EnableDynamicLoading>`.
+- `{ProjectName}.sln` — **required by the export** (`dotnet new sln -n {ProjectName} && dotnet sln add {ProjectName}.csproj`); without it `godot --export-release` still writes a package but silently leaves the C# assemblies out and the app crashes on launch. Publishing also needs the **.NET export templates** (`Godot_v<ver>_mono_export_templates.tpz` → `export_templates/<ver>.stable.mono/`).
 - `scripts/*.cs` runtime behavior · `scenes/*.tscn` scenes · `assets/` **only** files the running game loads (keep generation inputs/refs outside it).
 - Build gate: `dotnet build`, then `godot --headless --import` after asset changes, then `godot --headless --quit` (RID-leak warnings on headless exit are benign).
 

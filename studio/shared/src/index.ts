@@ -13,7 +13,7 @@ export type EngineName = 'godot' | 'godot-csharp' | 'bevy' | 'babylon';
 /** Publish targets. Phase 1 implements web, linux, windows; the rest are accepted and reported as unsupported. */
 export type PublishTarget = 'web' | 'linux' | 'windows' | 'macos' | 'android' | 'ios' | 'stream';
 export const PUBLISH_TARGETS: PublishTarget[] = ['web', 'linux', 'windows', 'macos', 'android', 'ios', 'stream'];
-export const IMPLEMENTED_TARGETS: PublishTarget[] = ['web', 'linux', 'windows'];
+export const IMPLEMENTED_TARGETS: PublishTarget[] = ['web', 'linux', 'windows', 'macos'];
 
 export interface PublishResult {
   target: PublishTarget;

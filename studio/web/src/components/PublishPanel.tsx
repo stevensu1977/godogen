@@ -3,7 +3,7 @@ import { IMPLEMENTED_TARGETS, PUBLISH_TARGETS, type PublishTarget, type RunSumma
 import { api } from '../lib/api';
 import type { Action, RunState } from '../lib/runState';
 
-const LABEL: Record<PublishTarget, string> = { web: 'Web (play in browser)', linux: 'Linux x86_64', windows: 'Windows x86_64', macos: 'macOS (unsigned)', android: 'Android (phase 2)', ios: 'iOS (phase 3)', stream: 'Stream (phase 4)' };
+const LABEL: Record<PublishTarget, string> = { web: 'Web (play in browser)', linux: 'Linux x86_64', windows: 'Windows x86_64', macos: 'macOS universal (ad-hoc signed)', android: 'Android (phase 2)', ios: 'iOS (phase 3)', stream: 'Stream (phase 4)' };
 
 /** Publish tab: choose targets, package, and see per-target results (play link, downloads, proof screenshot, log). */
 export function PublishPanel({ state, run, dispatch }: { state: RunState; run?: RunSummary; dispatch: React.Dispatch<Action> }) {

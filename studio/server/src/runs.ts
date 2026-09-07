@@ -52,7 +52,7 @@ import { fileURLToPath } from 'node:url';
 import { customAlphabet } from 'nanoid';
 const shortId = customAlphabet('23456789abcdefghjkmnpqrstuvwxyz', 6);
 import { IMPLEMENTED_TARGETS, type Artifact, type CommitDetail, type CommitSummary, type CreateRunRequest, type PublishTarget, type RunSummary, type RunTurn, type StudioEventInput, type TurnRequest } from '@goscene/shared';
-import { ensurePresets, godotBinaryFor, publishTarget } from './publisher.js';
+import { ensurePresets, ensureProjectSettings, godotBinaryFor, publishTarget } from './publisher.js';
 import { symlinkSync, unlinkSync } from 'node:fs';
 import { commitDetail, history, restoreTo } from './git.js';
 import { EventLog } from './events.js';
@@ -80,6 +80,7 @@ export class RunManager {
       try {
         const summary = JSON.parse(readFileSync(meta, 'utf-8')) as RunSummary;
         if (summary.status === 'running' || summary.status === 'queued') { summary.status = 'failed'; summary.phase = 'failed'; }
+        summary.publishing = false; // a publish never survives a restart
         const log = new EventLog(join(RUNS_ROOT, id, 'events.jsonl'), id);
         const artifacts = new Map<string, Artifact>();
         for (const ev of log.all()) if (ev.type === 'artifact') { if (ev.change === 'removed') artifacts.delete(ev.artifact.id); else artifacts.set(ev.artifact.id, ev.artifact); }
@@ -147,6 +148,8 @@ export class RunManager {
       try {
         const added = ensurePresets(r.summary.workspace, list);
         if (added.length) emit({ type: 'log', level: 'info', text: `Added export presets: ${added.join(', ')}` });
+        const settings = ensureProjectSettings(r.summary.workspace, list);
+        if (settings.length) emit({ type: 'log', level: 'info', text: `Set project settings for arm64 targets: ${settings.join(', ')}` });
         for (const t of list) {
           emit({ type: 'phase', phase: 'godot', detail: `Publishing ${t}` });
           const result = await publishTarget({ workspace: r.summary.workspace, runId: id, playBase, log: text => emit({ type: 'log', level: 'info', text }) }, t);

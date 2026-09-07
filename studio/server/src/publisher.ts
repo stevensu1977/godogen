@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import type { PublishResult, PublishTarget } from '@goscene/shared';
+import { childEnv } from './engines/types.js';
 
 const execFileP = promisify(execFile);
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -21,28 +22,68 @@ const PRESETS: Record<'web' | 'linux' | 'windows' | 'macos', { name: string; pla
   web:     { name: 'Web',     platform: 'Web',             path: 'build/web/index.html',   options: 'variant/thread_support=false\nhtml/canvas_resize_policy=2\nhtml/focus_canvas_on_start=true\n' },
   linux:   { name: 'Linux',   platform: 'Linux',           path: 'build/linux/game.x86_64', options: 'binary_format/architecture="x86_64"\n' },
   windows: { name: 'Windows', platform: 'Windows Desktop', path: 'build/windows/game.exe',  options: 'binary_format/architecture="x86_64"\n' },
-  macos:   { name: 'macOS',   platform: 'macOS',           path: 'build/macos/game.zip',    options: 'binary_format/architecture="universal"\ncodesign/codesign=0\nnotarization/notarization=0\n' },
+  // Built-in ad-hoc signing (codesign=1) works from Linux and is required for the app to launch on Apple Silicon at all.
+  // Not notarized: first launch needs right-click → Open (or `xattr -cr`).
+  macos:   { name: 'macOS',   platform: 'macOS',           path: 'build/macos/game.zip',    options: 'binary_format/architecture="universal"\ncodesign/codesign=1\ncodesign/identity=""\nnotarization/notarization=0\napplication/bundle_identifier="ai.goscene.game"\napplication/short_version="1.0"\napplication/version="1.0"\n' },
 };
 
-/** Ensure export_presets.cfg has the presets we need; append missing ones without touching the agent's. */
+/** arm64 targets (macOS universal, Android, iOS) refuse to export unless ETC2/ASTC texture import is on. */
+export function ensureProjectSettings(workspace: string, targets: PublishTarget[]): string[] {
+  const needsAstc = targets.some(t => t === 'macos' || t === 'android' || t === 'ios');
+  if (!needsAstc) return [];
+  const file = join(workspace, 'project.godot');
+  if (!existsSync(file)) return [];
+  let text = readFileSync(file, 'utf-8');
+  if (/^textures\/vram_compression\/import_etc2_astc=true/m.test(text)) return [];
+  text = text.replace(/^textures\/vram_compression\/import_etc2_astc=false\s*$/m, '');
+  if (/^\[rendering\]/m.test(text)) text = text.replace(/^\[rendering\]\s*$/m, '[rendering]\n\ntextures/vram_compression/import_etc2_astc=true');
+  else text += '\n[rendering]\n\ntextures/vram_compression/import_etc2_astc=true\n';
+  writeFileSync(file, text);
+  return ['rendering/textures/vram_compression/import_etc2_astc=true'];
+}
+
+/**
+ * Ensure export_presets.cfg has the presets we need. Missing presets are appended; for existing ones with our names,
+ * the Studio-managed option keys are upserted (Godot rewrites the file on export and older attempts may have left
+ * stale values) while the agent's other options are kept.
+ */
 export function ensurePresets(workspace: string, targets: PublishTarget[]): string[] {
   const file = join(workspace, 'export_presets.cfg');
   let text = existsSync(file) ? readFileSync(file, 'utf-8') : '';
-  const added: string[] = [];
+  const changed: string[] = [];
   let next = (text.match(/\[preset\.(\d+)\]/g) ?? []).length;
   for (const t of targets) {
     const p = PRESETS[t as keyof typeof PRESETS]; if (!p) continue;
-    if (new RegExp(`^name="${p.name}"`, 'm').test(text)) continue;
-    text += `${text && !text.endsWith('\n') ? '\n' : ''}\n[preset.${next}]\nname="${p.name}"\nplatform="${p.platform}"\nrunnable=true\nadvanced_options=false\ndedicated_server=false\ncustom_features=""\nexport_filter="all_resources"\ninclude_filter=""\nexclude_filter=""\nexport_path="${p.path}"\npatches=PackedStringArray()\nencryption_include_filters=""\nencryption_exclude_filters=""\nencrypt_pck=false\nencrypt_directory=false\nscript_export_mode=2\n\n[preset.${next}.options]\n${p.options}`;
-    next++; added.push(p.name);
+    const m = new RegExp(`\\[preset\\.(\\d+)\\]\\s*\\nname="${p.name}"`).exec(text);
+    if (!m) {
+      text += `${text && !text.endsWith('\n') ? '\n' : ''}\n[preset.${next}]\nname="${p.name}"\nplatform="${p.platform}"\nrunnable=true\nadvanced_options=false\ndedicated_server=false\ncustom_features=""\nexport_filter="all_resources"\ninclude_filter=""\nexclude_filter=""\nexport_path="${p.path}"\npatches=PackedStringArray()\nencryption_include_filters=""\nencryption_exclude_filters=""\nencrypt_pck=false\nencrypt_directory=false\nscript_export_mode=2\n\n[preset.${next}.options]\n${p.options}`;
+      next++; changed.push(`${p.name} (added)`);
+      continue;
+    }
+    const idx = m[1];
+    const optHead = `[preset.${idx}.options]`;
+    const start = text.indexOf(optHead);
+    if (start < 0) { text += `\n${optHead}\n${p.options}`; changed.push(`${p.name} (options added)`); continue; }
+    const bodyStart = start + optHead.length;
+    const nextSection = text.slice(bodyStart).search(/\n\[preset\./);
+    const bodyEnd = nextSection < 0 ? text.length : bodyStart + nextSection;
+    let body = text.slice(bodyStart, bodyEnd);
+    let touched = false;
+    for (const line of p.options.split('\n').filter(Boolean)) {
+      const key = line.split('=')[0];
+      const re = new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}=.*$`, 'm');
+      if (re.test(body)) { if (!body.match(re)![0].endsWith(line.slice(key.length))) { body = body.replace(re, line); touched = true; } }
+      else { body = body.replace(/\s*$/, '') + `\n${line}\n`; touched = true; }
+    }
+    if (touched) { text = text.slice(0, bodyStart) + body + text.slice(bodyEnd); changed.push(`${p.name} (options updated)`); }
   }
-  if (added.length) writeFileSync(file, text);
-  return added;
+  if (changed.length) writeFileSync(file, text);
+  return changed;
 }
 
 function run(cmd: string, args: string[], cwd: string, timeoutMs: number): Promise<{ code: number | null; out: string }> {
   return new Promise(res => {
-    const child = spawn(cmd, args, { cwd, env: { ...process.env, DISPLAY: '' } });
+    const child = spawn(cmd, args, { cwd, env: { ...childEnv(), DISPLAY: '' } });
     let out = '';
     const push = (d: Buffer) => { out += d.toString(); if (out.length > 200_000) out = out.slice(-200_000); };
     child.stdout.on('data', push); child.stderr.on('data', push);
@@ -57,6 +98,18 @@ async function zipDir(workspace: string, relDir: string, relZip: string): Promis
   await execFileP('zip', ['-qr', join(workspace, relZip), relDir], { cwd: workspace });
 }
 
+/** Godot's .NET export needs a solution file next to the .csproj; the agent often only creates the .csproj. */
+export async function ensureSolution(workspace: string): Promise<string | undefined> {
+  const csproj = readdirSync(workspace).find(f => f.endsWith('.csproj'));
+  if (!csproj) return undefined;
+  if (readdirSync(workspace).some(f => f.endsWith('.sln'))) return undefined;
+  const name = csproj.replace(/\.csproj$/, '');
+  const env = childEnv();
+  await execFileP('dotnet', ['new', 'sln', '-n', name, '--force'], { cwd: workspace, env });
+  await execFileP('dotnet', ['sln', `${name}.sln`, 'add', csproj], { cwd: workspace, env });
+  return `${name}.sln`;
+}
+
 export interface PublishContext { workspace: string; runId: string; playBase: string; log: (text: string) => void }
 
 export async function publishTarget(ctx: PublishContext, target: PublishTarget): Promise<PublishResult> {
@@ -69,16 +122,19 @@ export async function publishTarget(ctx: PublishContext, target: PublishTarget):
     return done(false, {}, 'web: Godot 4 cannot export C# projects to the web. Use the GDScript guide (engine godot) or the stream target.');
   const outAbs = join(ctx.workspace, preset.path);
   mkdirSync(dirname(outAbs), { recursive: true });
+  let slnNote = '';
+  try { const sln = await ensureSolution(ctx.workspace); if (sln) { slnNote = `\ncreated ${sln} (required by the .NET export)\n`; ctx.log(`${target}: created ${sln} for the .NET export`); } } catch (e: any) { slnNote = `\ncould not create a solution file: ${e.message}\n`; }
   ctx.log(`${target}: godot --headless --export-release ${preset.name} ${preset.path}`);
   const imp = await run(godot, ['--headless', '--path', ctx.workspace, '--import'], ctx.workspace, 300_000);
   const exp = await run(godot, ['--headless', '--path', ctx.workspace, '--export-release', preset.name, preset.path], ctx.workspace, 600_000);
-  let log = `$ godot --headless --import\n${tailText(imp.out)}\n\n$ godot --headless --export-release ${preset.name} ${preset.path}\n${exp.out}`;
+  let log = `${slnNote}$ godot --headless --import\n${tailText(imp.out)}\n\n$ godot --headless --export-release ${preset.name} ${preset.path}\n${exp.out}`;
   const produced = existsSync(outAbs) && statSync(outAbs).size > 0;
-  if (exp.code !== 0 || !produced || /No export template found|ERROR: Could not export|Failed to export/.test(exp.out))
+  if (exp.code !== 0 || !produced || /No export template found|ERROR: Could not export|Failed to export|ERROR: Export \.NET Project|no solution file/.test(exp.out))
     return done(false, {}, log + `\n\nexport exit=${exp.code}, output ${produced ? 'exists' : 'missing'}`);
   const outDir = dirname(preset.path);
-  const archive = `build/${target}.zip`;
-  try { await zipDir(ctx.workspace, outDir, archive); } catch (e: any) { log += `\nzip failed: ${e.message}`; }
+  // macOS export is already a zip containing the .app; other targets get zipped here.
+  const archive = target === 'macos' ? preset.path : `build/${target}.zip`;
+  if (target !== 'macos') { try { await zipDir(ctx.workspace, outDir, archive); } catch (e: any) { log += `\nzip failed: ${e.message}`; } }
   if (target !== 'web') return done(true, { path: preset.path, archive }, log);
 
   // Web: host it and prove it renders in a headless browser.

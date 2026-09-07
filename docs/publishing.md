@@ -64,6 +64,13 @@ load-and-instantiate smoke test; the GDScript-specific traps live in `engines/go
 - Verification: headless Chromium (`--use-angle=swiftshader`) loads the URL, waits up to 60 s for the Godot
   canvas and for the engine's "Godot Engine v…" console line, screenshots to `screenshots/publish/web.png`.
 
+## Lessons from the first publishes (2026-09-07)
+
+- arm64 targets (macOS universal, Android, iOS) refuse to export unless `rendering/textures/vram_compression/import_etc2_astc=true`; Studio sets it.
+- macOS from Linux: Godot's built-in ad-hoc signature (`codesign/codesign=1`) is enough for the app to launch on Apple Silicon; a bundle identifier is mandatory; the first launch of an un-notarized app is right-click → Open.
+- C# projects: the .NET export needs a `.sln` next to the `.csproj` (Studio creates one if missing) and the separate .NET export templates; the .NET Godot build itself cannot export Web.
+- Godot rewrites `export_presets.cfg` on export, so Studio upserts its managed option keys every time instead of writing presets once.
+
 ## Open decisions
 
 - macOS runner for iOS: EC2 Mac (hourly, 24 h minimum) vs hosted CI minutes. Hosted is cheaper at low volume.
