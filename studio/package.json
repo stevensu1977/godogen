@@ -1,0 +1,13 @@
+{
+  "name": "godogen-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Godogen Studio: orchestrator + web UI around Claude Code / Codex game-generation runs",
+  "workspaces": ["shared", "server", "web"],
+  "scripts": {
+    "dev:server": "npm --workspace server run dev",
+    "dev:web": "npm --workspace web run dev",
+    "build": "npm --workspace shared run build && npm --workspace web run build",
+    "typecheck": "npm --workspaces run typecheck --if-present"
+  }
+}

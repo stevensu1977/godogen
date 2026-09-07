@@ -18,6 +18,7 @@ A published repo is intentionally thin: a runtime manifest, a one-page engine gu
 - `asset-gen/` — the cross-engine asset-generation skill
 - `engines/babylon.md`, `engines/godot.md`, `engines/bevy.md` — per-engine guides
 - [publish.sh](publish.sh) — renders the runtime layout for the chosen engine and host agent
+- [studio/](studio/README.md) — Godogen Studio: a server and web UI that publishes a workspace, runs Claude Code or Codex against a brief, and streams messages, tool calls, phases and artifacts (code, images, video, GLB) to the browser
 
 Engine and host agent (Claude vs Codex) are publish-time render choices, not separate source trees.
 

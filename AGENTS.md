@@ -9,6 +9,7 @@ This repository is not a published game repo. It is the source that `publish.sh`
 - `engines/babylon.md`, `engines/godot.md`, `engines/bevy.md` — per-engine guides (stack, project sketch, capture recipe, silent-failure traps)
 - `publish.sh` — renders a runtime repo with `--engine {godot,bevy,babylon}`, `--agent {claude,codex}`
 - `scripts/` — render helpers: `render_dir.py` (token substitution), `generate_codex_metadata.py` (Codex `openai.yaml`)
+- `studio/` — orchestrator + web UI around runs (shared event contract, Node server, React app); see `studio/README.md`
 
 ## Editing Rules
 

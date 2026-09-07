@@ -1,0 +1,73 @@
+import { serve } from '@hono/node-server';
+import { Hono } from 'hono';
+import { cors } from 'hono/cors';
+import { streamSSE } from 'hono/streaming';
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { extname, resolve, sep } from 'node:path';
+import { Readable } from 'node:stream';
+import { API_PORT, type CreateRunRequest } from '@godogen/shared';
+import { RunManager, RUNS_ROOT } from './runs.js';
+
+const runs = new RunManager();
+const app = new Hono();
+app.use('/api/*', cors());
+
+app.get('/api/health', c => c.json({ ok: true, runs: runs.list().length, runsRoot: RUNS_ROOT }));
+app.get('/api/runs', c => c.json(runs.list()));
+app.post('/api/runs', async c => {
+  const body = (await c.req.json()) as CreateRunRequest;
+  if (!body?.brief?.trim()) return c.json({ error: 'brief is required' }, 400);
+  try { return c.json(runs.create(body), 201); } catch (e: any) { return c.json({ error: e?.message ?? String(e) }, 500); }
+});
+app.get('/api/runs/:id', c => { const r = runs.get(c.req.param('id')); return r ? c.json(r.summary) : c.json({ error: 'not found' }, 404); });
+app.post('/api/runs/:id/cancel', c => { const s = runs.cancel(c.req.param('id')); return s ? c.json(s) : c.json({ error: 'not found' }, 404); });
+app.post('/api/runs/:id/resume', c => { const s = runs.resume(c.req.param('id')); return s ? c.json(s) : c.json({ error: 'not found or running' }, 404); });
+app.post('/api/runs/:id/reply', c => c.json({ error: 'interactive replies are not wired yet' }, 501));
+app.get('/api/runs/:id/artifacts', c => runs.get(c.req.param('id')) ? c.json(runs.artifacts(c.req.param('id'))) : c.json({ error: 'not found' }, 404));
+
+app.get('/api/runs/:id/events', c => {
+  const r = runs.get(c.req.param('id'));
+  if (!r) return c.json({ error: 'not found' }, 404);
+  const lastId = c.req.header('Last-Event-ID') ?? c.req.query('after');
+  let after = lastId ? Number(lastId) || 0 : 0;
+  return streamSSE(c, async stream => {
+    let closed = false;
+    stream.onAbort(() => { closed = true; });
+    const send = async (ev: any) => { await stream.writeSSE({ id: String(ev.seq), event: ev.type, data: JSON.stringify(ev) }); after = ev.seq; };
+    for (const ev of r.log.after(after)) await send(ev);
+    const finished = () => r.summary.status !== 'running' && r.summary.status !== 'queued';
+    if (finished()) { await stream.writeSSE({ event: 'end', data: JSON.stringify({ status: r.summary.status }) }); return; }
+    const queue: any[] = []; let wake: (() => void) | undefined;
+    const unsub = r.log.subscribe(ev => { queue.push(ev); wake?.(); });
+    try {
+      while (!closed) {
+        while (queue.length) await send(queue.shift());
+        if (finished() && !queue.length) { await stream.writeSSE({ event: 'end', data: JSON.stringify({ status: r.summary.status }) }); break; }
+        await Promise.race([new Promise<void>(res => { wake = res; }), stream.sleep(15000).then(() => stream.writeSSE({ event: 'ping', data: '' }))]);
+        wake = undefined;
+      }
+    } finally { unsub(); }
+  });
+});
+
+const MIME: Record<string, string> = { '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.gif': 'image/gif', '.mp4': 'video/mp4', '.webm': 'video/webm', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.html': 'text/html; charset=utf-8' };
+app.get('/api/runs/:id/files/*', c => {
+  const r = runs.get(c.req.param('id'));
+  if (!r) return c.json({ error: 'not found' }, 404);
+  const rel = decodeURIComponent(c.req.path.split('/files/')[1] ?? '');
+  const root = resolve(r.summary.workspace);
+  const abs = resolve(root, rel);
+  if (!abs.startsWith(root + sep) || !existsSync(abs) || !statSync(abs).isFile()) return c.json({ error: 'not found' }, 404);
+  const type = MIME[extname(abs).toLowerCase()] ?? 'text/plain; charset=utf-8';
+  const size = statSync(abs).size;
+  const range = c.req.header('range');
+  if (range && type.startsWith('video/')) {
+    const m = /bytes=(\d+)-(\d*)/.exec(range);
+    const start = m ? Number(m[1]) : 0; const end = m && m[2] ? Number(m[2]) : size - 1;
+    return new Response(Readable.toWeb(createReadStream(abs, { start, end })) as any, { status: 206, headers: { 'content-type': type, 'content-range': `bytes ${start}-${end}/${size}`, 'accept-ranges': 'bytes', 'content-length': String(end - start + 1) } });
+  }
+  return new Response(Readable.toWeb(createReadStream(abs)) as any, { headers: { 'content-type': type, 'content-length': String(size), 'accept-ranges': 'bytes', 'cache-control': 'no-cache' } });
+});
+
+const port = Number(process.env.PORT) || API_PORT;
+serve({ fetch: app.fetch, port }, () => console.log(`godogen studio server on http://localhost:${port}  runs=${RUNS_ROOT}`));
