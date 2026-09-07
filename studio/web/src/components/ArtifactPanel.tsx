@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react
 import { useSearchParams } from 'react-router-dom';
 import type { Artifact, ArtifactKind } from '@godogen/shared';
 import { api } from '../lib/api';
-import { bytes } from '../lib/format';
+import { bytes, timeOfDay } from '../lib/format';
 import type { Action } from '../lib/runState';
 import { CodeViewer } from '../viewers/CodeViewer';
 import { ImageViewer } from '../viewers/ImageViewer';
@@ -34,6 +34,11 @@ function Thumb({ a, url }: { a: Artifact; url: string }) {
 
 export function ArtifactPanel({ runId, artifacts, freshIds, dispatch }: { runId: string; artifacts: Artifact[]; freshIds: string[]; dispatch: React.Dispatch<Action> }) {
   const [tab, setTab] = useState<Tab>('all');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<'recent' | 'name'>('recent');
+  const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('studio.artifacts.view') as 'grid' | 'list') || 'grid');
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  useEffect(() => { localStorage.setItem('studio.artifacts.view', view); }, [view]);
   // The open artifact lives in the URL (?artifact=<id>) so a viewer can be deep-linked.
   const [params, setParams] = useSearchParams();
   const openId = params.get('artifact');
@@ -49,8 +54,19 @@ export function ArtifactPanel({ runId, artifacts, freshIds, dispatch }: { runId:
   }, [artifacts]);
   const visible = useMemo(() => {
     const kinds = TABS.find((t) => t.id === tab)!.kinds;
-    return artifacts.filter((a) => kinds.includes(a.kind)).slice().sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  }, [artifacts, tab]);
+    const q = query.trim().toLowerCase();
+    const list = artifacts.filter((a) => kinds.includes(a.kind) && (!q || a.path.toLowerCase().includes(q)));
+    return list.sort((a, b) => (sort === 'recent' ? b.updatedAt.localeCompare(a.updatedAt) : a.path.localeCompare(b.path)));
+  }, [artifacts, tab, query, sort]);
+  // Group by folder so a long list reads as a tree, not a wall of cards. Groups are ordered by their newest file.
+  const groups = useMemo(() => {
+    const m = new Map<string, Artifact[]>();
+    for (const a of visible) { const dir = a.path.includes('/') ? a.path.slice(0, a.path.lastIndexOf('/')) : '/'; (m.get(dir) ?? m.set(dir, []).get(dir)!).push(a); }
+    const arr = [...m.entries()].map(([dir, items]) => ({ dir, items, newest: items.reduce((t, a) => (a.updatedAt > t ? a.updatedAt : t), '') }));
+    return arr.sort((x, y) => (sort === 'recent' ? y.newest.localeCompare(x.newest) : x.dir.localeCompare(y.dir)));
+  }, [visible, sort]);
+  const grouped = groups.length > 1;
+  const setAll = (c: boolean) => setCollapsed(Object.fromEntries(groups.map((g) => [g.dir, c])));
 
   // Clear "fresh" highlight after the animation.
   useEffect(() => {
@@ -85,18 +101,65 @@ export function ArtifactPanel({ runId, artifacts, freshIds, dispatch }: { runId:
       {open ? (
         <Viewer runId={runId} artifact={open} />
       ) : (
-        <div className="art-grid">
-          {visible.length === 0 && <div className="art-empty">{artifacts.length === 0 ? 'No artifacts yet — they appear here as the agent writes files.' : 'Nothing in this category yet.'}</div>}
-          {visible.map((a) => (
-            <button key={a.id} className={`art-card ${freshIds.includes(a.id) ? 'fresh' : ''}`} onClick={() => setOpenId(a.id)} title={a.path}>
-              {freshIds.includes(a.id) && <span className="badge">NEW</span>}
-              <Thumb a={a} url={api.fileUrl(runId, a.path)} />
-              <div className="info">
-                <span className="name">{a.title}</span>
-                <span className="path">{a.path} · {bytes(a.bytes)}</span>
-              </div>
-            </button>
-          ))}
+        <div className="art-body">
+          <div className="art-toolbar">
+            <input className="art-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Filter by name or path…" />
+            <select value={sort} onChange={(e) => setSort(e.target.value as 'recent' | 'name')} title="Sort">
+              <option value="recent">Newest first</option>
+              <option value="name">By path</option>
+            </select>
+            <div className="seg" title="View">
+              <button className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')} aria-label="Grid">▦</button>
+              <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')} aria-label="List">☰</button>
+            </div>
+            {grouped && <button className="btn ghost sm" onClick={() => setAll(!groups.every((g) => collapsed[g.dir]))}>{groups.every((g) => collapsed[g.dir]) ? 'Expand all' : 'Collapse all'}</button>}
+          </div>
+          <div className="art-scroll">
+            {visible.length === 0 && <div className="art-empty">{artifacts.length === 0 ? 'No artifacts yet — they appear here as the agent writes files.' : query ? 'No artifact matches the filter.' : 'Nothing in this category yet.'}</div>}
+            {groups.map((g) => {
+              const isCollapsed = grouped && !!collapsed[g.dir];
+              const freshHere = g.items.filter((a) => freshIds.includes(a.id)).length;
+              return (
+                <section key={g.dir} className="art-group">
+                  {grouped && (
+                    <button className={`art-group-head ${isCollapsed ? 'collapsed' : ''}`} onClick={() => setCollapsed((c) => ({ ...c, [g.dir]: !c[g.dir] }))}>
+                      <span className="chev">▶</span>
+                      <span className="dir">{g.dir === '/' ? 'project root' : g.dir}</span>
+                      <span className="n">{g.items.length}</span>
+                      {freshHere > 0 && <span className="badge">{freshHere} NEW</span>}
+                    </button>
+                  )}
+                  {!isCollapsed && (view === 'grid' ? (
+                    <div className="art-grid">
+                      {g.items.map((a) => (
+                        <button key={a.id} className={`art-card ${freshIds.includes(a.id) ? 'fresh' : ''}`} onClick={() => setOpenId(a.id)} title={a.path}>
+                          {freshIds.includes(a.id) && <span className="badge">NEW</span>}
+                          <Thumb a={a} url={api.fileUrl(runId, a.path)} />
+                          <div className="info">
+                            <span className="name">{a.title}</span>
+                            <span className="path">{grouped ? bytes(a.bytes) : `${a.path} · ${bytes(a.bytes)}`}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="art-list">
+                      {g.items.map((a) => (
+                        <button key={a.id} className={`art-row ${freshIds.includes(a.id) ? 'fresh' : ''}`} onClick={() => setOpenId(a.id)} title={a.path}>
+                          <span className={`kind ${a.kind}`}>{a.kind === 'image' ? '🖼' : a.kind === 'video' ? '🎬' : a.kind === 'model' ? '🧊' : a.kind === 'doc' ? '¶' : '</>'}</span>
+                          <span className="name">{a.title}</span>
+                          {!grouped && <span className="path">{a.path}</span>}
+                          {freshIds.includes(a.id) && <span className="badge">NEW</span>}
+                          <span className="size">{bytes(a.bytes)}</span>
+                          <span className="time">{timeOfDay(a.updatedAt)}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                </section>
+              );
+            })}
+          </div>
         </div>
       )}
     </>
