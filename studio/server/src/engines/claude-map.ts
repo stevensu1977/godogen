@@ -2,7 +2,7 @@
  * Pure mapper from Claude Code messages (Agent SDK `SDKMessage`, identical to `claude -p --output-format
  * stream-json` lines) to Studio events. Shared by the live engine and the importer.
  */
-import { phaseForTool, type Phase, type StudioEvent, type StudioEventInput } from '@godogen/shared';
+import { phaseForTool, type Phase, type StudioEvent, type StudioEventInput } from '@goscene/shared';
 import { tail } from './types.js';
 
 type Partial = StudioEventInput;

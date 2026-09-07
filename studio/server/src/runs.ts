@@ -14,9 +14,9 @@ function autoCommit(workspace: string, turn: RunTurn, runTitle: string): { commi
   const files = staged.split('\n').filter(Boolean).length;
   const first = turn.text.split('\n').find(l => l.trim())?.trim().replace(/^#+\s*/, '') ?? 'turn';
   const subject = `Turn ${turn.index}: ${first}`.slice(0, 72);
-  const body = `${runTitle}\n\nInstruction:\n${turn.text.trim()}\n\nStatus: ${turn.status} · cost $${turn.costUsd.toFixed(2)} · committed by Godogen Studio`;
-  const author = process.env.STUDIO_GIT_AUTHOR ?? 'Godogen Studio <studio@godogen.local>';
-  git('-c', `user.name=${author.replace(/\s*<.*$/, '')}`, '-c', `user.email=${/<(.*)>/.exec(author)?.[1] ?? 'studio@godogen.local'}`, 'commit', '-q', '-m', subject, '-m', body);
+  const body = `${runTitle}\n\nInstruction:\n${turn.text.trim()}\n\nStatus: ${turn.status} · cost $${turn.costUsd.toFixed(2)} · committed by GoScene`;
+  const author = process.env.STUDIO_GIT_AUTHOR ?? 'GoScene <studio@goscene.ai>';
+  git('-c', `user.name=${author.replace(/\s*<.*$/, '')}`, '-c', `user.email=${/<(.*)>/.exec(author)?.[1] ?? 'studio@goscene.ai'}`, 'commit', '-q', '-m', subject, '-m', body);
   return { commit: git('rev-parse', '--short', 'HEAD'), files };
 }
 
@@ -26,7 +26,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { customAlphabet } from 'nanoid';
 const shortId = customAlphabet('23456789abcdefghjkmnpqrstuvwxyz', 6);
-import type { Artifact, CommitDetail, CommitSummary, CreateRunRequest, RunSummary, RunTurn, StudioEventInput, TurnRequest } from '@godogen/shared';
+import type { Artifact, CommitDetail, CommitSummary, CreateRunRequest, RunSummary, RunTurn, StudioEventInput, TurnRequest } from '@goscene/shared';
 import { commitDetail, history, restoreTo } from './git.js';
 import { EventLog } from './events.js';
 import { claudeEngine } from './engines/claude.js';
@@ -117,8 +117,8 @@ export class RunManager {
     const target = history(r.summary.workspace, r.summary.turns_history, 1000).find(c => c.hash === hash || c.short === hash);
     if (!target) throw new Error('unknown commit');
     const label = target.turnIndex ? `turn ${target.turnIndex}` : target.short;
-    const author = process.env.STUDIO_GIT_AUTHOR ?? 'Godogen Studio <studio@godogen.local>';
-    const commit = restoreTo(r.summary.workspace, target.hash, `Restore to ${label} (${target.short})`, `Workspace restored by the user to commit ${target.hash}: ${target.subject}\n\ncommitted by Godogen Studio`, author);
+    const author = process.env.STUDIO_GIT_AUTHOR ?? 'GoScene <studio@goscene.ai>';
+    const commit = restoreTo(r.summary.workspace, target.hash, `Restore to ${label} (${target.short})`, `Workspace restored by the user to commit ${target.hash}: ${target.subject}\n\ncommitted by GoScene`, author);
     r.summary.restoreNote = `Note from the user: the workspace was restored to the state of ${label} (commit ${target.short}: "${target.subject}"). Every change made after that point is gone from the files. Re-read README.md and any file you rely on before editing; do not assume later work exists.`;
     this.save(r);
     this.emitter(r)({ type: 'workspace.restored', toHash: target.hash, toShort: target.short, toSubject: target.subject, turnIndex: target.turnIndex, commit });

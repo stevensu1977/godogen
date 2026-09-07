@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { EventEmitter } from 'node:events';
-import type {StudioEvent, StudioEventInput } from '@godogen/shared';
+import type {StudioEvent, StudioEventInput } from '@goscene/shared';
 
 /** Append-only per-run event log: JSONL on disk, in-memory mirror for replay, EventEmitter for live fans. */
 export class EventLog {

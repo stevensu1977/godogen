@@ -11,7 +11,7 @@ import { createReadStream, existsSync, statSync } from 'node:fs';
 import { join, normalize, extname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Plugin } from 'vite';
-import type { Artifact, RunSummary, StudioEvent } from '@godogen/shared';
+import type { Artifact, RunSummary, StudioEvent } from '@goscene/shared';
 import { FINISHED_HISTORY, LIVE_INTRO, RUNS, liveLoop, type Ev, type Step } from './fixtures';
 
 const FILES_DIR = new URL('./files/', import.meta.url).pathname;

@@ -1,4 +1,4 @@
-import type { RunStatus } from '@godogen/shared';
+import type { RunStatus } from '@goscene/shared';
 import { STATUS_LABEL } from '../lib/format';
 
 export function StatusPill({ status }: { status: RunStatus }) {

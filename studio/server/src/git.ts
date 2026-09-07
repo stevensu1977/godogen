@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import type { CommitDetail, CommitSummary, RunTurn } from '@godogen/shared';
+import type { CommitDetail, CommitSummary, RunTurn } from '@goscene/shared';
 
 const SEP = '\u001f'; const REC = '\u001e';
 export function git(workspace: string, ...args: string[]): string {
@@ -46,7 +46,7 @@ export function restoreTo(workspace: string, hash: string, subject: string, body
   git(workspace, 'add', '-A');
   const staged = git(workspace, 'diff', '--cached', '--name-only').trim();
   if (!staged) throw new Error('workspace already matches that commit');
-  const name = author.replace(/\s*<.*$/, ''); const email = /<(.*)>/.exec(author)?.[1] ?? 'studio@godogen.local';
+  const name = author.replace(/\s*<.*$/, ''); const email = /<(.*)>/.exec(author)?.[1] ?? 'studio@goscene.ai';
   git(workspace, '-c', `user.name=${name}`, '-c', `user.email=${email}`, 'commit', '-q', '-m', subject, '-m', body);
   return git(workspace, 'rev-parse', '--short', 'HEAD').trim();
 }

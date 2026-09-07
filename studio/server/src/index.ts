@@ -5,7 +5,7 @@ import { streamSSE } from 'hono/streaming';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
-import { API_PORT, type CreateRunRequest, type RestoreRequest, type TurnRequest } from '@godogen/shared';
+import { API_PORT, type CreateRunRequest, type RestoreRequest, type TurnRequest } from '@goscene/shared';
 import { RunManager, RUNS_ROOT } from './runs.js';
 
 const runs = new RunManager();
@@ -96,4 +96,4 @@ app.get('/api/runs/:id/files/*', c => {
 });
 
 const port = Number(process.env.PORT) || API_PORT;
-serve({ fetch: app.fetch, port }, () => console.log(`godogen studio server on http://localhost:${port}  runs=${RUNS_ROOT}`));
+serve({ fetch: app.fetch, port }, () => console.log(`GoScene server on http://localhost:${port}  runs=${RUNS_ROOT}`));

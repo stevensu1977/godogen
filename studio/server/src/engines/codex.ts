@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { phaseForTool } from '@godogen/shared';
+import { phaseForTool } from '@goscene/shared';
 import { childEnv, tail, type Engine, type EngineResult, type EngineStart } from './types.js';
 
 /**

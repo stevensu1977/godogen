@@ -1,5 +1,5 @@
 /**
- * Godogen Studio event model.
+ * GoScene event model.
  *
  * The one contract between engines (Claude Code, Codex, ...), the server and the web UI. Engines never
  * leak their native event formats past their adapter; the UI never consumes anything but these.

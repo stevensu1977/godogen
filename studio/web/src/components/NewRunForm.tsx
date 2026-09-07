@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { EngineKind, EngineName, RunSummary } from '@godogen/shared';
+import type { EngineKind, EngineName, RunSummary } from '@goscene/shared';
 import { api } from '../lib/api';
 
 export function NewRunForm({ onClose, onCreated }: { onClose: () => void; onCreated: (run: RunSummary) => void }) {

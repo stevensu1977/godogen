@@ -1,4 +1,4 @@
-# Godogen Studio
+# GoScene (formerly GoScene)
 
 An orchestrator and web UI around godogen runs. Claude Code (via the Agent SDK) or Codex (`codex exec --json`)
 remains the agent; Studio publishes the godogen runtime into a fresh workspace, hands the model a brief,
@@ -48,7 +48,7 @@ instructions (`POST /api/runs/:id/turns`) while the run is not running. The engi
 ## One commit per turn
 
 When a turn ends, Studio stages everything in the workspace and commits it as `Turn N: <instruction>` with the
-full instruction, status and cost in the body (author `Godogen Studio`, override with `STUDIO_GIT_AUTHOR`). The
+full instruction, status and cost in the body (author `GoScene`, override with `STUDIO_GIT_AUTHOR`). The
 short hash lands on the turn (`turns_history[].commit`), in the `run.finished` event and on the timeline card, so
 every turn is a reviewable, revertable step regardless of whether the agent committed anything itself. A clean
 tree logs "nothing to commit". Published workspaces track `assets/` and ignore `screenshots/`, `.godot/`, build output.

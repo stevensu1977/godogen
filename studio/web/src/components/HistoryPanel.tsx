@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { CommitDetail, CommitSummary, RunSummary } from '@godogen/shared';
+import type { CommitDetail, CommitSummary, RunSummary } from '@goscene/shared';
 import { api } from '../lib/api';
 import type { Action } from '../lib/runState';
 

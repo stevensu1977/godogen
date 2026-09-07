@@ -1,4 +1,4 @@
-import type { Phase, RunStatus } from '@godogen/shared';
+import type { Phase, RunStatus } from '@goscene/shared';
 
 export const money = (usd: number) => `$${(usd ?? 0).toFixed(2)}`;
 

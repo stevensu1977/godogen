@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import type { RunSummary } from '@godogen/shared';
+import type { RunSummary } from '@goscene/shared';
 import { api } from '../lib/api';
 import { duration, money, PHASE_LABEL, relative, STATUS_LABEL } from '../lib/format';
 import { useTicker } from '../lib/useRunStream';
@@ -36,7 +36,7 @@ export function RunList() {
       <div className="runs-head">
         <div>
           <h1>Runs</h1>
-          <p>Long-running game-generation sessions. Open one to follow the agent and browse what it produced.</p>
+          <p>Describe a game. Play it in minutes. Open a run to follow the agent and browse what it produced.</p>
         </div>
         <button className="btn primary" onClick={() => setShowForm(true)}>+ New run</button>
       </div>

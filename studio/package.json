@@ -1,8 +1,8 @@
 {
-  "name": "godogen-studio",
+  "name": "goscene-studio",
   "private": true,
   "version": "0.1.0",
-  "description": "Godogen Studio: orchestrator + web UI around Claude Code / Codex game-generation runs",
+  "description": "GoScene: an AI game studio around Claude Code / Codex runs — describe a game, play it in minutes",
   "workspaces": ["shared", "server", "web"],
   "scripts": {
     "dev:server": "npm --workspace server run dev",

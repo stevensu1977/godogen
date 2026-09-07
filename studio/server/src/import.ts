@@ -5,7 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolve } from 'node:path';
-import type {RunSummary, StudioEvent, StudioEventInput } from '@godogen/shared';
+import type {RunSummary, StudioEvent, StudioEventInput } from '@goscene/shared';
 import { mapClaudeMessage, newMapState } from './engines/claude-map.js';
 import { RunManager } from './runs.js';
 

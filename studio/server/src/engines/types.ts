@@ -1,4 +1,4 @@
-import type {StudioEvent, StudioEventInput } from '@godogen/shared';
+import type {StudioEvent, StudioEventInput } from '@goscene/shared';
 
 export type Emit = (partial: StudioEventInput) => void;
 

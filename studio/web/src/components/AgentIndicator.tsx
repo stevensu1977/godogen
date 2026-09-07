@@ -1,4 +1,4 @@
-import type { Phase } from '@godogen/shared';
+import type { Phase } from '@goscene/shared';
 import { PHASE_LABEL } from '../lib/format';
 
 /**

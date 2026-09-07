@@ -1,7 +1,7 @@
-# Godogen Studio — web UI
+# GoScene — web UI
 
 Vite + React 18 + TypeScript front end for Studio runs. It consumes only the contract in
-`../shared/src/index.ts` (`@godogen/shared`): `RunSummary`, `Artifact`, and the `StudioEvent` SSE stream.
+`../shared/src/index.ts` (`@goscene/shared`): `RunSummary`, `Artifact`, and the `StudioEvent` SSE stream.
 
 ## Scripts
 
@@ -13,7 +13,7 @@ Vite + React 18 + TypeScript front end for Studio runs. It consumes only the con
 | `npm run typecheck` | `tsc --noEmit` over `src/`, `mock/` and the Vite config. |
 | `node scripts/shot.mjs <url> <out.png> [--wait ms] [--click css] [--eval js]` | Headless Chromium screenshot over the DevTools protocol; prints page console. |
 
-Run `npm install` from `studio/` (the workspace root) so `@godogen/shared` links.
+Run `npm install` from `studio/` (the workspace root) so `@goscene/shared` links.
 
 ## Structure
 

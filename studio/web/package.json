@@ -1,5 +1,5 @@
 {
-  "name": "@godogen/web",
+  "name": "@goscene/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit -p ."
   },
   "dependencies": {
-    "@godogen/shared": "*",
+    "@goscene/shared": "*",
     "@react-three/drei": "^9.117.3",
     "@react-three/fiber": "^8.17.10",
     "prism-react-renderer": "^2.4.1",

@@ -3,7 +3,7 @@
  * one live (scripted events emitted with delays, looping through blender -> godot -> capturing).
  * Files referenced by artifacts live under mock/files/<path>.
  */
-import type { Artifact, Phase, RunSummary, StudioEvent } from '@godogen/shared';
+import type { Artifact, Phase, RunSummary, StudioEvent } from '@goscene/shared';
 
 type DistributiveOmit<T, K extends keyof T> = T extends unknown ? Omit<T, K> : never;
 /** A StudioEvent without the envelope the store fills in. */

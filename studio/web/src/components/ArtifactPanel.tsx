@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { Artifact, ArtifactKind } from '@godogen/shared';
+import type { Artifact, ArtifactKind } from '@goscene/shared';
 import { api } from '../lib/api';
 import { bytes, timeOfDay } from '../lib/format';
 import type { Action } from '../lib/runState';
@@ -8,7 +8,7 @@ import { CodeViewer } from '../viewers/CodeViewer';
 import { ImageViewer } from '../viewers/ImageViewer';
 import { VideoViewer } from '../viewers/VideoViewer';
 import { HistoryPanel } from './HistoryPanel';
-import type { RunSummary } from '@godogen/shared';
+import type { RunSummary } from '@goscene/shared';
 
 const ModelViewer = lazy(() => import('../viewers/ModelViewer'));
 

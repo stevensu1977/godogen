@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef } from 'react';
-import type { StudioEvent } from '@godogen/shared';
+import type { StudioEvent } from '@goscene/shared';
 import { api } from './api';
 import { initialRunState, reduce, type RunState, type Action } from './runState';
 import { isTerminal } from './format';

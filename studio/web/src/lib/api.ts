@@ -1,4 +1,4 @@
-import type { Artifact, CommitDetail, CommitSummary, CreateRunRequest, RunSummary } from '@godogen/shared';
+import type { Artifact, CommitDetail, CommitSummary, CreateRunRequest, RunSummary } from '@goscene/shared';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } });

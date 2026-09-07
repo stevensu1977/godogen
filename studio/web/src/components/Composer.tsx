@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { RunSummary } from '@godogen/shared';
+import type { RunSummary } from '@goscene/shared';
 import { api } from '../lib/api';
 import type { Action } from '../lib/runState';
 

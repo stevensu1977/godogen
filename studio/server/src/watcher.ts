@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from 'chokidar';
 import { statSync } from 'node:fs';
 import { relative, sep } from 'node:path';
-import { classifyArtifact, type Artifact } from '@godogen/shared';
+import { classifyArtifact, type Artifact } from '@goscene/shared';
 
 const IGNORED_DIRS = new Set(['.git', '.godot', 'bin', 'obj', 'node_modules', '.claude', '.agents', '.codex', 'target', 'dist', '.venv', '__pycache__', 'video']);
 const IGNORED_EXT = /\.(import|uid|md5|tmp|log|jsonl|lock|avi|wav|ttf|otf|pyc|meta|swp)$/i;

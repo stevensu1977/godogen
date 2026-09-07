@@ -23,7 +23,7 @@ export function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <Link to="/" className="brand"><DuckLogo /> Godogen Studio</Link>
+        <Link to="/" className="brand"><DuckLogo /> GoScene</Link>
         <Routes>
           <Route path="/runs/:id" element={<span className="crumb">/ <b>run</b></span>} />
           <Route path="*" element={null} />

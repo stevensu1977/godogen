@@ -2,7 +2,7 @@
  * Reduces the StudioEvent stream into UI state: a run summary, an ordered timeline, artifacts,
  * cost and phase. Streaming message deltas are merged by messageId; tool results attach to their call.
  */
-import type { Artifact, Phase, RunStatus, RunSummary, StudioEvent } from '@godogen/shared';
+import type { Artifact, Phase, RunStatus, RunSummary, StudioEvent } from '@goscene/shared';
 
 export type TimelineItem =
   | { kind: 'message'; key: string; messageId: string; text: string; final: boolean; ts: string }
