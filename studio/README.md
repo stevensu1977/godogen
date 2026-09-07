@@ -53,6 +53,15 @@ short hash lands on the turn (`turns_history[].commit`), in the `run.finished` e
 every turn is a reviewable, revertable step regardless of whether the agent committed anything itself. A clean
 tree logs "nothing to commit". Published workspaces track `assets/` and ignore `screenshots/`, `.godot/`, build output.
 
+## History and restore
+
+The History tab lists the workspace's git log (Studio turn commits are labelled with their turn; the agent's own
+commits show their author). Clicking a commit opens a modal with the full message, per-file additions/deletions and
+the unified diff (binary assets excluded, large diffs truncated). "Restore to this commit" rewrites the working tree
+to that commit's files and records it as a new `Restore to …` commit, so history is never lost; the artifact list is
+rescanned, a `workspace.restored` marker lands on the timeline, and the next turn's instruction is prefixed with a
+note telling the agent that later changes are gone. Not available while a turn is running.
+
 ## Event model
 
 Eight event types, defined once in `shared/src/index.ts`, persisted per run as append-only `events.jsonl`, served

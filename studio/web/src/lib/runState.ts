@@ -11,7 +11,8 @@ export type TimelineItem =
   | { kind: 'needs_input'; key: string; prompt: string; options?: string[]; ts: string; answered?: string }
   | { kind: 'log'; key: string; level: 'info' | 'warn' | 'error'; text: string; ts: string }
   | { kind: 'finished'; key: string; status: Exclude<RunStatus, 'queued' | 'running'>; summary?: string; error?: string; durationMs: number; ts: string; commit?: string; commitFiles?: number }
-  | { kind: 'turn'; key: string; index: number; text: string; ts: string };
+  | { kind: 'turn'; key: string; index: number; text: string; ts: string }
+  | { kind: 'restored'; key: string; toShort: string; toSubject: string; turnIndex?: number; commit: string; ts: string };
 
 export type Connection = 'connecting' | 'live' | 'reconnecting' | 'closed';
 
@@ -132,6 +133,8 @@ function applyEvent(state: RunState, ev: StudioEvent, live: boolean): RunState {
       return { ...base, phase: 'waiting_input', pendingInput: { key, prompt: ev.prompt, options: ev.options }, items: [...base.items, { kind: 'needs_input', key, prompt: ev.prompt, options: ev.options, ts: ev.ts }] };
     case 'log':
       return { ...base, items: [...base.items, { kind: 'log', key, level: ev.level, text: ev.text, ts: ev.ts }] };
+    case 'workspace.restored':
+      return { ...base, items: [...base.items, { kind: 'restored', key, toShort: ev.toShort, toSubject: ev.toSubject, turnIndex: ev.turnIndex, commit: ev.commit, ts: ev.ts }] };
     case 'turn.started': {
       const run = base.run ? { ...base.run, status: 'running' as RunStatus, phase: 'thinking' as Phase, finishedAt: undefined } : base.run;
       return { ...base, run, phase: 'thinking', phaseDetail: undefined, finished: undefined, pendingInput: undefined, items: [...base.items, { kind: 'turn', key, index: ev.index, text: ev.text, ts: ev.ts }] };

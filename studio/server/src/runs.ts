@@ -26,7 +26,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { customAlphabet } from 'nanoid';
 const shortId = customAlphabet('23456789abcdefghjkmnpqrstuvwxyz', 6);
-import type { Artifact, CreateRunRequest, RunSummary, RunTurn, StudioEventInput, TurnRequest } from '@godogen/shared';
+import type { Artifact, CommitDetail, CommitSummary, CreateRunRequest, RunSummary, RunTurn, StudioEventInput, TurnRequest } from '@godogen/shared';
+import { commitDetail, history, restoreTo } from './git.js';
 import { EventLog } from './events.js';
 import { claudeEngine } from './engines/claude.js';
 import { codexEngine } from './engines/codex.js';
@@ -106,13 +107,37 @@ export class RunManager {
     return turn;
   }
 
+  history(id: string): CommitSummary[] | undefined { const r = this.runs.get(id); return r ? history(r.summary.workspace, r.summary.turns_history) : undefined; }
+  commit(id: string, hash: string): CommitDetail | undefined { const r = this.runs.get(id); return r ? commitDetail(r.summary.workspace, hash, r.summary.turns_history) : undefined; }
+
+  /** Restore the workspace to an earlier commit as a new commit; the next turn is told about it. */
+  restore(id: string, hash: string): RunSummary | 'running' | undefined {
+    const r = this.runs.get(id); if (!r) return undefined;
+    if (r.summary.status === 'running' || r.summary.status === 'queued') return 'running';
+    const target = history(r.summary.workspace, r.summary.turns_history, 1000).find(c => c.hash === hash || c.short === hash);
+    if (!target) throw new Error('unknown commit');
+    const label = target.turnIndex ? `turn ${target.turnIndex}` : target.short;
+    const author = process.env.STUDIO_GIT_AUTHOR ?? 'Godogen Studio <studio@godogen.local>';
+    const commit = restoreTo(r.summary.workspace, target.hash, `Restore to ${label} (${target.short})`, `Workspace restored by the user to commit ${target.hash}: ${target.subject}\n\ncommitted by Godogen Studio`, author);
+    r.summary.restoreNote = `Note from the user: the workspace was restored to the state of ${label} (commit ${target.short}: "${target.subject}"). Every change made after that point is gone from the files. Re-read README.md and any file you rely on before editing; do not assume later work exists.`;
+    this.save(r);
+    this.emitter(r)({ type: 'workspace.restored', toHash: target.hash, toShort: target.short, toSubject: target.subject, turnIndex: target.turnIndex, commit });
+    // Artifact list follows the files: rescan so removed/reverted files disappear or update.
+    const now = new Map(this.scanArtifacts(r.summary.workspace).map(a => [a.id, a] as const));
+    const emit = this.emitter(r);
+    for (const [aid, a] of r.artifacts) if (!now.has(aid)) emit({ type: 'artifact', artifact: a, change: 'removed' });
+    for (const [aid, a] of now) { const prev = r.artifacts.get(aid); if (!prev) emit({ type: 'artifact', artifact: a, change: 'added' }); else if (prev.updatedAt !== a.updatedAt || prev.bytes !== a.bytes) emit({ type: 'artifact', artifact: a, change: 'updated' }); }
+    return r.summary;
+  }
+
   /** Follow-up instruction on a run that is not running: same workspace, engine session resumed when known. */
   addTurn(id: string, req: TurnRequest): RunSummary | 'running' | undefined {
     const r = this.runs.get(id);
     if (!r) return undefined;
     if (r.summary.status === 'running' || r.summary.status === 'queued') return 'running';
-    const text = req.text.trim(); if (!text) return undefined;
+    let text = req.text.trim(); if (!text) return undefined;
     if (req.model) r.summary.model = req.model;
+    if (r.summary.restoreNote) { text = `${r.summary.restoreNote}\n\n${text}`; r.summary.restoreNote = undefined; }
     r.costBase = r.summary.costUsd;
     void this.start(r, this.newTurn(r, text));
     return r.summary;

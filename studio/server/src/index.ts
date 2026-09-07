@@ -5,7 +5,7 @@ import { streamSSE } from 'hono/streaming';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
-import { API_PORT, type CreateRunRequest, type TurnRequest } from '@godogen/shared';
+import { API_PORT, type CreateRunRequest, type RestoreRequest, type TurnRequest } from '@godogen/shared';
 import { RunManager, RUNS_ROOT } from './runs.js';
 
 const runs = new RunManager();
@@ -21,6 +21,17 @@ app.post('/api/runs', async c => {
 });
 app.get('/api/runs/:id', c => { const r = runs.get(c.req.param('id')); return r ? c.json(r.summary) : c.json({ error: 'not found' }, 404); });
 app.post('/api/runs/:id/cancel', c => { const s = runs.cancel(c.req.param('id')); return s ? c.json(s) : c.json({ error: 'not found' }, 404); });
+app.get('/api/runs/:id/history', c => { const h = runs.history(c.req.param('id')); return h ? c.json(h) : c.json({ error: 'not found' }, 404); });
+app.get('/api/runs/:id/history/:hash', c => { if (!runs.get(c.req.param('id'))) return c.json({ error: 'not found' }, 404); const d = runs.commit(c.req.param('id'), c.req.param('hash')); return d ? c.json(d) : c.json({ error: 'unknown commit' }, 404); });
+app.post('/api/runs/:id/restore', async c => {
+  const body = (await c.req.json()) as RestoreRequest;
+  if (!body?.hash) return c.json({ error: 'hash is required' }, 400);
+  try {
+    const s = runs.restore(c.req.param('id'), body.hash);
+    if (s === 'running') return c.json({ error: 'run is in progress; cancel it first' }, 409);
+    return s ? c.json(s) : c.json({ error: 'not found' }, 404);
+  } catch (e: any) { return c.json({ error: e?.stderr?.toString?.() || e?.message || String(e) }, 400); }
+});
 app.post('/api/runs/:id/turns', async c => {
   const body = (await c.req.json()) as TurnRequest;
   if (!body?.text?.trim()) return c.json({ error: 'text is required' }, 400);

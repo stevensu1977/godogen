@@ -91,6 +91,13 @@ function Item({ item, runId, dispatch }: { item: TimelineItem; runId: string; di
     case 'log':
       return <div className={`tl-log ${item.level}`}><span className="tl-time">{timeOfDay(item.ts)}</span><span className="txt">{item.text}</span></div>;
     case 'needs_input': return <InputItem item={item} runId={runId} dispatch={dispatch} />;
+    case 'restored':
+      return (
+        <div className="tl-turn restored">
+          <span className="tl-time">{timeOfDay(item.ts)}</span>
+          <div className="box"><div className="h">Workspace restored</div><div className="t">Back to {item.turnIndex ? `turn ${item.turnIndex}` : 'commit'} <code>{item.toShort}</code> · “{item.toSubject}” · new commit <code>{item.commit}</code></div></div>
+        </div>
+      );
     case 'turn':
       return (
         <div className="tl-turn">

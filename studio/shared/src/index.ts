@@ -79,6 +79,8 @@ export interface RunSummary {
   artifactCount: number;
   /** Turn history; `costUsd` above is the sum over turns. */
   turns_history?: RunTurn[];
+  /** Set after a restore; prepended to the next turn's instruction so the agent knows later changes are gone. */
+  restoreNote?: string;
 }
 
 interface Base {
@@ -94,6 +96,8 @@ export type StudioEvent =
   | (Base & { type: 'run.finished'; status: Exclude<RunStatus, 'queued' | 'running'>; costUsd: number; turns: number; durationMs: number; summary?: string; error?: string; turnId?: string; commit?: string; commitFiles?: number })
   /** A follow-up turn started on the same workspace, resuming the engine session when possible. */
   | (Base & { type: 'turn.started'; turnId: string; index: number; text: string })
+  /** The user restored the workspace to an earlier commit; Studio committed the restored tree as `commit`. */
+  | (Base & { type: 'workspace.restored'; toHash: string; toShort: string; toSubject: string; turnIndex?: number; commit: string })
   /** Assistant text for humans, streamed. `final` closes the message. */
   | (Base & { type: 'message'; messageId: string; delta: string; final?: boolean })
   | (Base & { type: 'phase'; phase: Phase; detail?: string })
@@ -123,6 +127,28 @@ export interface CreateRunRequest {
 }
 
 export interface ReplyRequest { text: string }
+
+/** One git commit on the run workspace (GET /api/runs/:id/history). */
+export interface CommitSummary {
+  hash: string;
+  short: string;
+  author: string;
+  date: string;
+  subject: string;
+  body: string;
+  filesChanged: number;
+  /** Turn index when this is a Studio per-turn commit. */
+  turnIndex?: number;
+  /** True for Studio's own restore commits. */
+  restore?: boolean;
+}
+export interface CommitDetail extends CommitSummary {
+  files: { path: string; additions: number; deletions: number; status: string }[];
+  /** Unified diff, truncated to `diffTruncated` bytes when large. */
+  diff: string;
+  diffTruncated: boolean;
+}
+export interface RestoreRequest { hash: string }
 /** Body for POST /api/runs/:id/turns — a follow-up instruction on a run that is not running. */
 export interface TurnRequest { text: string; model?: string }
 
@@ -136,6 +162,9 @@ export interface TurnRequest { text: string; model?: string }
  *   GET  /api/runs/:id/artifacts           -> Artifact[]
  *   GET  /api/runs/:id/files/<path>        -> raw file from the workspace (code text, PNG, MP4, GLB)
  *   POST /api/runs/:id/turns               -> RunSummary (202) | 409 while running   (TurnRequest)
+ *   GET  /api/runs/:id/history             -> CommitSummary[]   (newest first)
+ *   GET  /api/runs/:id/history/:hash       -> CommitDetail
+ *   POST /api/runs/:id/restore             -> RunSummary | 409 while running   (RestoreRequest)
  *   POST /api/runs/:id/cancel              -> RunSummary
  *   POST /api/runs/:id/reply               -> 202              (ReplyRequest; answers a needs_input)
  */

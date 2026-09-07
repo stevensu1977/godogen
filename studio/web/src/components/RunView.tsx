@@ -15,7 +15,7 @@ export function RunView({ runId }: { runId: string }) {
           <Composer run={state.run} dispatch={dispatch} onSent={reopen} />
         </section>
         <section className="artifact-pane">
-          <ArtifactPanel runId={runId} artifacts={state.artifacts} freshIds={state.freshArtifactIds} dispatch={dispatch} />
+          <ArtifactPanel runId={runId} artifacts={state.artifacts} freshIds={state.freshArtifactIds} dispatch={dispatch} run={state.run} onRestored={reopen} />
         </section>
       </div>
     </div>
