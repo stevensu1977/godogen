@@ -2,7 +2,7 @@
 # Publish Godogen runtime files into a target game repo.
 #
 # Usage:
-#   ./publish.sh --engine godot|bevy|babylon --agent claude|codex --out <dir> [--force]
+#   ./publish.sh --engine godot|godot-csharp|bevy|babylon --agent claude|codex --out <dir> [--force]
 #   ./publish.sh --engine godot|bevy|babylon --agent claude|codex <dir> [--force]
 #
 # A published repo carries only docs: the runtime manifest (CLAUDE.md / AGENTS.md),
@@ -42,10 +42,11 @@ while [ $# -gt 0 ]; do
 done
 
 case "$ENGINE" in
-    godot)   ENGINE_DISPLAY="Godot" ;;
-    bevy)    ENGINE_DISPLAY="Bevy" ;;
+    godot)        ENGINE_DISPLAY="Godot" ;;
+    godot-csharp) ENGINE_DISPLAY="Godot" ;;
+    bevy)         ENGINE_DISPLAY="Bevy" ;;
     babylon) ENGINE_DISPLAY="Babylon.js" ;;
-    *) echo "error: --engine must be godot, bevy, or babylon" >&2; usage; exit 1 ;;
+    *) echo "error: --engine must be godot, godot-csharp, bevy, or babylon" >&2; usage; exit 1 ;;
 esac
 
 # Root for runtime-loaded generated assets, substituted into the asset docs.
@@ -71,7 +72,8 @@ case "$AGENT" in
 esac
 
 ASSET_GEN_SKILL_DIR="$SKILLS_DIR_REL/asset-gen"
-ENGINE_GUIDE_FILE="$ENGINE.md"
+ENGINE_GUIDE_FILE="godot.md"
+case "$ENGINE" in godot|godot-csharp) ;; *) ENGINE_GUIDE_FILE="$ENGINE.md" ;; esac
 
 if [ -z "$OUT" ]; then
     echo "error: --out <target_dir> is required" >&2
@@ -139,9 +141,9 @@ if [ ! -f "$TARGET/.gitignore" ]; then
         fi
         printf '%s\n' "$ENGINE_GUIDE_FILE" multiplayer.md
         case "$ENGINE" in
-            godot)
-                # assets/ is tracked: generated models and textures are part of the deliverable.
-                printf 'screenshots\n.godot\n*.import\n*.uid\nbin/\nobj/\n'
+            godot|godot-csharp)
+                # assets/ is tracked: generated models and textures are part of the deliverable. build/ is publish output.
+                printf 'screenshots\n.godot\n*.import\n*.uid\nbin/\nobj/\nbuild/\n'
                 ;;
             bevy)
                 printf '/target\n/screenshots\n'

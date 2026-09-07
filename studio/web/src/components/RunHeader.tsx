@@ -47,6 +47,7 @@ export function RunHeader({ state, runId }: { state: RunState; runId: string }) 
         <div className="stat"><span className="k">Elapsed</span><span className="v dim">{duration(elapsedMs)}</span></div>
         <div className="stat"><span className="k">Artifacts</span><span className="v dim">{state.artifacts.length}</span></div>
       </div>
+      {state.publish.web?.ok && <a className="btn primary" href={api.playUrl(runId)} target="_blank" rel="noreferrer">▶ Play</a>}
       {running && <button className="btn danger" onClick={cancel} disabled={cancelling}>{cancelling ? 'Cancelling…' : 'Cancel'}</button>}
     </div>
   );

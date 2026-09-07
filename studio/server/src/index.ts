@@ -5,9 +5,10 @@ import { streamSSE } from 'hono/streaming';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
-import { API_PORT, type CreateRunRequest, type RestoreRequest, type TurnRequest } from '@goscene/shared';
+import { API_PORT, type CreateRunRequest, type PublishRequest, type RestoreRequest, type TurnRequest } from '@goscene/shared';
 import { RunManager, RUNS_ROOT } from './runs.js';
 
+const port = Number(process.env.PORT) || API_PORT;
 const runs = new RunManager();
 const app = new Hono();
 app.use('/api/*', cors());
@@ -31,6 +32,26 @@ app.post('/api/runs/:id/restore', async c => {
     if (s === 'running') return c.json({ error: 'run is in progress; cancel it first' }, 409);
     return s ? c.json(s) : c.json({ error: 'not found' }, 404);
   } catch (e: any) { return c.json({ error: e?.stderr?.toString?.() || e?.message || String(e) }, 400); }
+});
+app.post('/api/runs/:id/publish', async c => {
+  const raw = await c.req.text();
+  const body = (raw ? JSON.parse(raw) : {}) as PublishRequest;
+  const s = runs.publish(c.req.param('id'), body.targets, `http://localhost:${port}`);
+  if (s === 'running') return c.json({ error: 'run or publish in progress' }, 409);
+  return s ? c.json(s, 202) : c.json({ error: 'not found' }, 404);
+});
+// Hosted web builds: COOP/COEP so threaded exports (SharedArrayBuffer) work too.
+app.get('/play/:id/*', c => {
+  const r = runs.get(c.req.param('id'));
+  if (!r) return c.text('not found', 404);
+  const root = resolve(r.summary.workspace, 'build', 'web');
+  let rel = decodeURIComponent(c.req.path.split(`/play/${c.req.param('id')}/`)[1] ?? '');
+  if (!rel) rel = 'index.html';
+  const abs = resolve(root, rel);
+  if (!abs.startsWith(root + sep) || !existsSync(abs) || !statSync(abs).isFile()) return c.text('not found', 404);
+  const ext = extname(abs).toLowerCase();
+  const type = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.wasm': 'application/wasm', '.pck': 'application/octet-stream', '.png': 'image/png', '.ico': 'image/x-icon', '.json': 'application/json', '.css': 'text/css', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml' }[ext] ?? 'application/octet-stream';
+  return new Response(Readable.toWeb(createReadStream(abs)) as any, { headers: { 'content-type': type, 'content-length': String(statSync(abs).size), 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp', 'cross-origin-resource-policy': 'cross-origin', 'cache-control': 'no-cache' } });
 });
 app.post('/api/runs/:id/turns', async c => {
   const body = (await c.req.json()) as TurnRequest;
@@ -95,5 +116,4 @@ app.get('/api/runs/:id/files/*', c => {
   return new Response(Readable.toWeb(createReadStream(abs)) as any, { headers: { 'content-type': type, 'content-length': String(size), 'accept-ranges': 'bytes', 'cache-control': 'no-cache' } });
 });
 
-const port = Number(process.env.PORT) || API_PORT;
 serve({ fetch: app.fetch, port }, () => console.log(`GoScene server on http://localhost:${port}  runs=${RUNS_ROOT}`));

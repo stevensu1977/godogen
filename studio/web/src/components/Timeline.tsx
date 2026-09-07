@@ -91,6 +91,20 @@ function Item({ item, runId, dispatch }: { item: TimelineItem; runId: string; di
     case 'log':
       return <div className={`tl-log ${item.level}`}><span className="tl-time">{timeOfDay(item.ts)}</span><span className="txt">{item.text}</span></div>;
     case 'needs_input': return <InputItem item={item} runId={runId} dispatch={dispatch} />;
+    case 'publish_started':
+      return <div className="tl-phase" style={{ ['--ph' as string]: 'var(--accent)' }}><span className="dot" />Publishing {item.targets.join(', ')}</div>;
+    case 'publish':
+      return (
+        <div className="tl-finished">
+          <span className="tl-time">{timeOfDay(item.ts)}</span>
+          <div className={`box ${item.result.ok ? 'finished' : 'failed'}`}>
+            <div className="h">{item.result.ok ? '📦 Published' : '✕ Publish failed'} · {item.result.target} <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>in {shortDuration(item.result.durationMs)}</span></div>
+            {item.result.ok && item.result.url && <div className="s"><a className="btn primary sm" href={api.playUrl(runId)} target="_blank" rel="noreferrer">▶ Play in browser</a> {item.result.archive && <a className="btn sm" href={api.fileUrl(runId, item.result.archive)}>Download zip</a>}</div>}
+            {item.result.ok && !item.result.url && item.result.archive && <div className="s"><a className="btn sm" href={api.fileUrl(runId, item.result.archive)}>Download {item.result.target} build</a></div>}
+            {!item.result.ok && <pre>{item.result.log.slice(-1500)}</pre>}
+          </div>
+        </div>
+      );
     case 'restored':
       return (
         <div className="tl-turn restored">

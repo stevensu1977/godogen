@@ -20,13 +20,25 @@ function autoCommit(workspace: string, turn: RunTurn, runTitle: string): { commi
   return { commit: git('rev-parse', '--short', 'HEAD'), files };
 }
 
+function targetsBlock(targets: PublishTarget[], engine: string): string {
+  if (!targets.length) return '';
+  const impl = targets.filter(t => IMPLEMENTED_TARGETS.includes(t)); const later = targets.filter(t => !IMPLEMENTED_TARGETS.includes(t));
+  return `\n## Targets\n\nThis game will be published to: ${targets.join(', ')}. Apply the target constraints from the engine guide while building` +
+    (targets.includes('web') ? ' (Web: gl_compatibility renderer, single-threaded export, small .pck, no right-click)' : '') +
+    `. Create export_presets.cfg with the exact preset names from the guide for: ${impl.join(', ') || 'none'}` +
+    (impl.length ? `; run the export for each once yourself and read the export log before calling the work done.` : '.') +
+    (later.length ? ` Targets ${later.join(', ')} are packaged in a later phase — only keep the project compatible with them (renderer, input, UI scaling).` : '') +
+    (engine === 'godot-csharp' && targets.includes('web') ? ' NOTE: C# projects cannot export to Web; say so in README and skip the Web preset.' : '') + '\n';
+}
+
 function current(r: RunRecord): RunTurn | undefined { const h = r.summary.turns_history; return h && h.length ? h[h.length - 1] : undefined; }
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { customAlphabet } from 'nanoid';
 const shortId = customAlphabet('23456789abcdefghjkmnpqrstuvwxyz', 6);
-import type { Artifact, CommitDetail, CommitSummary, CreateRunRequest, RunSummary, RunTurn, StudioEventInput, TurnRequest } from '@goscene/shared';
+import { IMPLEMENTED_TARGETS, type Artifact, type CommitDetail, type CommitSummary, type CreateRunRequest, type PublishTarget, type RunSummary, type RunTurn, type StudioEventInput, type TurnRequest } from '@goscene/shared';
+import { ensurePresets, publishTarget } from './publisher.js';
 import { commitDetail, history, restoreTo } from './git.js';
 import { EventLog } from './events.js';
 import { claudeEngine } from './engines/claude.js';
@@ -89,14 +101,15 @@ export class RunManager {
     const dir = join(RUNS_ROOT, id); const workspace = join(dir, 'workspace');
     mkdirSync(workspace, { recursive: true });
     execFileSync(join(GODOGEN_ROOT, 'publish.sh'), ['--engine', engine, '--agent', agent, '--out', workspace], { stdio: 'pipe' });
-    writeFileSync(join(workspace, 'BRIEF.md'), req.brief.trim() + '\n');
+    const targets = (req.targets ?? []).filter((t, i, a) => a.indexOf(t) === i);
+    writeFileSync(join(workspace, 'BRIEF.md'), req.brief.trim() + '\n' + targetsBlock(targets, engine));
     const summary: RunSummary = {
       id, title: req.title?.trim() || req.brief.trim().split('\n')[0].slice(0, 80), brief: req.brief, engine, agent,
-      status: 'queued', phase: 'idle', createdAt: new Date().toISOString(), costUsd: 0, turns: 0, workspace, artifactCount: 0, model: req.model, turns_history: [],
+      status: 'queued', phase: 'idle', createdAt: new Date().toISOString(), costUsd: 0, turns: 0, workspace, artifactCount: 0, model: req.model, turns_history: [], targets,
     };
     const r: RunRecord = { summary, log: new EventLog(join(dir, 'events.jsonl'), id), artifacts: new Map(), costBase: 0 };
     this.runs.set(id, r); this.save(r);
-    void this.start(r, this.newTurn(r, req.brief.trim()), req.budgetUsd);
+    void this.start(r, this.newTurn(r, readFileSync(join(workspace, 'BRIEF.md'), 'utf-8').trim()), req.budgetUsd);
     return summary;
   }
 
@@ -105,6 +118,32 @@ export class RunManager {
     const turn: RunTurn = { id: `t${r.summary.turns_history.length + 1}-${shortId()}`, index: r.summary.turns_history.length + 1, text, startedAt: new Date().toISOString(), status: 'queued', costUsd: 0 };
     r.summary.turns_history.push(turn);
     return turn;
+  }
+
+  /** Package the workspace for the given targets (default: the run's). Runs after the engine, never concurrently with it. */
+  publish(id: string, targets?: PublishTarget[], playBase = ''): RunSummary | 'running' | undefined {
+    const r = this.runs.get(id); if (!r) return undefined;
+    if (r.summary.status === 'running' || r.summary.status === 'queued' || r.summary.publishing) return 'running';
+    const list = (targets?.length ? targets : r.summary.targets ?? ['web']).filter((t, i, a) => a.indexOf(t) === i);
+    r.summary.publishing = true; this.save(r);
+    const emit = this.emitter(r);
+    emit({ type: 'publish.started', targets: list });
+    void (async () => {
+      try {
+        const added = ensurePresets(r.summary.workspace, list);
+        if (added.length) emit({ type: 'log', level: 'info', text: `Added export presets: ${added.join(', ')}` });
+        for (const t of list) {
+          emit({ type: 'phase', phase: 'godot', detail: `Publishing ${t}` });
+          const result = await publishTarget({ workspace: r.summary.workspace, runId: id, playBase, log: text => emit({ type: 'log', level: 'info', text }) }, t);
+          r.summary.publish = { ...(r.summary.publish ?? {}), [t]: result };
+          emit({ type: 'publish.result', result });
+          if (result.screenshot) { const a = toArtifact(r.summary.workspace, join(r.summary.workspace, result.screenshot)); if (a) emit({ type: 'artifact', artifact: a, change: r.artifacts.has(a.id) ? 'updated' : 'added' }); }
+        }
+        emit({ type: 'phase', phase: 'done' });
+      } catch (e: any) { emit({ type: 'log', level: 'error', text: `publish failed: ${e?.message ?? e}` }); }
+      finally { r.summary.publishing = false; r.summary.phase = 'done'; this.save(r); }
+    })();
+    return r.summary;
   }
 
   history(id: string): CommitSummary[] | undefined { const r = this.runs.get(id); return r ? history(r.summary.workspace, r.summary.turns_history) : undefined; }

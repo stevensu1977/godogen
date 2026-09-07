@@ -398,3 +398,26 @@ code, pre, .mono { font-family: var(--mono); font-size: 12.5px; }
 .cm-diff .h { color: #8fb4ff; } .cm-diff .f { color: var(--accent); font-weight: 600; }
 .tl-turn.restored .box { border-color: rgba(240, 84, 90, 0.35); background: rgba(240, 84, 90, 0.08); }
 .tl-turn.restored .h { color: var(--err); }
+
+/* publish */
+.targets { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.targets .target { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+.targets .target.later { color: var(--muted); }
+.pub { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.pub-targets { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 14px; }
+.pub-target { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; }
+.pub-target.later { color: var(--muted); }
+.pub-actions { display: flex; align-items: center; gap: 10px; }
+.pub-actions .hint { color: var(--muted); font-size: 12px; }
+.pub-actions .err { color: var(--err); font-size: 12px; }
+.pub-results { display: flex; flex-direction: column; gap: 10px; }
+.pub-result { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--panel); }
+.pub-result.ok { border-color: rgba(63, 185, 80, 0.35); }
+.pub-result.fail { border-color: rgba(240, 84, 90, 0.35); }
+.pub-result .row { display: flex; align-items: center; gap: 10px; }
+.pub-result .st { font-weight: 700; }
+.pub-result.ok .st { color: #3fb950; } .pub-result.fail .st { color: var(--err); }
+.pub-result .t { font-weight: 600; }
+.pub-result .meta { color: var(--muted); font-size: 11.5px; font-family: var(--mono); margin-right: auto; }
+.pub-result .shot { display: block; margin-top: 10px; width: 100%; max-width: 640px; border-radius: 8px; border: 1px solid var(--border); }
+.pub-result .log { margin: 10px 0 0; max-height: 320px; overflow: auto; font-size: 11.5px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; }

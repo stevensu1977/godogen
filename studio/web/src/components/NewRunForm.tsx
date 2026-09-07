@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import type { EngineKind, EngineName, RunSummary } from '@goscene/shared';
+import { IMPLEMENTED_TARGETS, PUBLISH_TARGETS, type EngineKind, type EngineName, type PublishTarget, type RunSummary } from '@goscene/shared';
 import { api } from '../lib/api';
 
 export function NewRunForm({ onClose, onCreated }: { onClose: () => void; onCreated: (run: RunSummary) => void }) {
@@ -8,6 +8,7 @@ export function NewRunForm({ onClose, onCreated }: { onClose: () => void; onCrea
   const [engine, setEngine] = useState<EngineName>('godot');
   const [agent, setAgent] = useState<EngineKind>('claude');
   const [budget, setBudget] = useState('25');
+  const [targets, setTargets] = useState<PublishTarget[]>(['web', 'linux', 'windows']);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
 
@@ -23,7 +24,7 @@ export function NewRunForm({ onClose, onCreated }: { onClose: () => void; onCrea
     setBusy(true); setError(undefined);
     try {
       const budgetUsd = budget.trim() ? Number(budget) : undefined;
-      const run = await api.createRun({ brief: brief.trim(), title: title.trim() || undefined, engine, agent, budgetUsd: Number.isFinite(budgetUsd) ? budgetUsd : undefined });
+      const run = await api.createRun({ brief: brief.trim(), title: title.trim() || undefined, engine, agent, budgetUsd: Number.isFinite(budgetUsd) ? budgetUsd : undefined, targets });
       onCreated(run);
     } catch (err) {
       setError(String((err as Error).message ?? err));
@@ -47,7 +48,8 @@ export function NewRunForm({ onClose, onCreated }: { onClose: () => void; onCrea
           <div className="field">
             <label htmlFor="nr-engine">Engine</label>
             <select id="nr-engine" value={engine} onChange={(e) => setEngine(e.target.value as EngineName)}>
-              <option value="godot">Godot</option>
+              <option value="godot">Godot (GDScript)</option>
+              <option value="godot-csharp">Godot (C#, no Web)</option>
               <option value="bevy">Bevy</option>
               <option value="babylon">Babylon.js</option>
             </select>
@@ -63,6 +65,17 @@ export function NewRunForm({ onClose, onCreated }: { onClose: () => void; onCrea
             <label htmlFor="nr-budget">Budget (USD)</label>
             <input id="nr-budget" type="number" min="0" step="1" value={budget} onChange={(e) => setBudget(e.target.value)} />
           </div>
+        </div>
+        <div className="field">
+          <label>Publish targets</label>
+          <div className="targets">
+            {PUBLISH_TARGETS.map((t) => (
+              <label key={t} className={`target ${IMPLEMENTED_TARGETS.includes(t) ? '' : 'later'}`} title={IMPLEMENTED_TARGETS.includes(t) ? '' : 'Packaged in a later phase; the agent keeps the project compatible'}>
+                <input type="checkbox" checked={targets.includes(t)} onChange={() => setTargets((s) => (s.includes(t) ? s.filter((x) => x !== t) : [...s, t]))} /> {t}
+              </label>
+            ))}
+          </div>
+          {engine === 'godot-csharp' && targets.includes('web') && <div className="hint" style={{ color: 'var(--err)' }}>Godot 4 cannot export C# to the Web — pick GDScript or drop the web target.</div>}
         </div>
         {error && <div className="error-box">{error}</div>}
         <div className="actions">

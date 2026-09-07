@@ -1,4 +1,4 @@
-import type { Artifact, CommitDetail, CommitSummary, CreateRunRequest, RunSummary } from '@goscene/shared';
+import type { Artifact, CommitDetail, CommitSummary, CreateRunRequest, PublishTarget, RunSummary } from '@goscene/shared';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) } });
@@ -21,6 +21,8 @@ export const api = {
   history: (id: string) => request<CommitSummary[]>(`/api/runs/${encodeURIComponent(id)}/history`),
   commit: (id: string, hash: string) => request<CommitDetail>(`/api/runs/${encodeURIComponent(id)}/history/${hash}`),
   restore: (id: string, hash: string) => request<RunSummary>(`/api/runs/${encodeURIComponent(id)}/restore`, { method: 'POST', body: JSON.stringify({ hash }) }),
+  publish: (id: string, targets?: PublishTarget[]) => request<RunSummary>(`/api/runs/${encodeURIComponent(id)}/publish`, { method: 'POST', body: JSON.stringify({ targets }) }),
+  playUrl: (id: string) => `/play/${encodeURIComponent(id)}/`,
   postTurn: (id: string, text: string) => request<RunSummary>(`/api/runs/${encodeURIComponent(id)}/turns`, { method: 'POST', body: JSON.stringify({ text }) }),
   reply: (id: string, text: string) => request<void>(`/api/runs/${encodeURIComponent(id)}/reply`, { method: 'POST', body: JSON.stringify({ text }) }),
   eventsUrl: (id: string, after?: number) => `/api/runs/${encodeURIComponent(id)}/events${after ? `?after=${after}` : ''}`,

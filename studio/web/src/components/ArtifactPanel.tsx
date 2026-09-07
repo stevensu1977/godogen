@@ -8,11 +8,13 @@ import { CodeViewer } from '../viewers/CodeViewer';
 import { ImageViewer } from '../viewers/ImageViewer';
 import { VideoViewer } from '../viewers/VideoViewer';
 import { HistoryPanel } from './HistoryPanel';
+import { PublishPanel } from './PublishPanel';
+import type { RunState } from '../lib/runState';
 import type { RunSummary } from '@goscene/shared';
 
 const ModelViewer = lazy(() => import('../viewers/ModelViewer'));
 
-type Tab = 'all' | 'code' | 'image' | 'video' | 'model' | 'history';
+type Tab = 'all' | 'code' | 'image' | 'video' | 'model' | 'history' | 'publish';
 const TABS: { id: Tab; label: string; kinds: ArtifactKind[] }[] = [
   { id: 'all', label: 'All', kinds: ['code', 'image', 'video', 'model', 'doc', 'other'] },
   { id: 'code', label: 'Code', kinds: ['code', 'doc'] },
@@ -20,6 +22,7 @@ const TABS: { id: Tab; label: string; kinds: ArtifactKind[] }[] = [
   { id: 'video', label: 'Video', kinds: ['video'] },
   { id: 'model', label: '3D', kinds: ['model'] },
   { id: 'history', label: 'History', kinds: [] },
+  { id: 'publish', label: 'Publish', kinds: [] },
 ];
 
 const ext = (p: string) => (p.split('.').pop() ?? '').toLowerCase();
@@ -35,7 +38,7 @@ function Thumb({ a, url }: { a: Artifact; url: string }) {
   }
 }
 
-export function ArtifactPanel({ runId, artifacts, freshIds, dispatch, run, onRestored }: { runId: string; artifacts: Artifact[]; freshIds: string[]; dispatch: React.Dispatch<Action>; run?: RunSummary; onRestored: () => void }) {
+export function ArtifactPanel({ runId, artifacts, freshIds, dispatch, run, onRestored, state }: { runId: string; artifacts: Artifact[]; freshIds: string[]; dispatch: React.Dispatch<Action>; run?: RunSummary; onRestored: () => void; state: RunState }) {
   const [histKey, setHistKey] = useState(0);
   const [tab, setTab] = useState<Tab>('all');
   const [query, setQuery] = useState('');
@@ -52,7 +55,7 @@ export function ArtifactPanel({ runId, artifacts, freshIds, dispatch, run, onRes
   const open = artifacts.find((a) => a.id === openId) ?? null;
 
   const counts = useMemo(() => {
-    const c: Record<Tab, number> = { all: 0, code: 0, image: 0, video: 0, model: 0, history: 0 };
+    const c: Record<Tab, number> = { all: 0, code: 0, image: 0, video: 0, model: 0, history: 0, publish: 0 };
     for (const a of artifacts) for (const t of TABS) if (t.kinds.includes(a.kind)) c[t.id]++;
     return c;
   }, [artifacts]);
@@ -98,12 +101,14 @@ export function ArtifactPanel({ runId, artifacts, freshIds, dispatch, run, onRes
           </>
         ) : (
           TABS.map((t) => (
-            <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>{t.label}{t.id !== 'history' && <span className="n">{counts[t.id]}</span>}</button>
+            <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>{t.label}{t.id !== 'history' && t.id !== 'publish' && <span className="n">{counts[t.id]}</span>}{t.id === 'publish' && state.publish.web?.ok && <span className="n">▶</span>}</button>
           ))
         )}
       </div>
       {open ? (
         <Viewer runId={runId} artifact={open} />
+      ) : tab === 'publish' ? (
+        <PublishPanel state={state} run={run} dispatch={dispatch} />
       ) : tab === 'history' ? (
         <HistoryPanel run={run} dispatch={dispatch} refreshKey={histKey} onRestored={() => { setHistKey((k) => k + 1); onRestored(); }} />
       ) : (

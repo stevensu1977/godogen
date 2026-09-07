@@ -62,6 +62,16 @@ to that commit's files and records it as a new `Restore to …` commit, so histo
 rescanned, a `workspace.restored` marker lands on the timeline, and the next turn's instruction is prefixed with a
 note telling the agent that later changes are gone. Not available while a turn is running.
 
+## Publish (one-click packaging)
+
+Runs carry `targets` (web, linux, windows now; macos, android, ios, stream later — see `docs/publishing.md`).
+Studio appends a Targets block to the brief so the agent builds with the right renderer, input and
+`export_presets.cfg`. The Publish tab (or `POST /api/runs/:id/publish`) then exports each target with the
+matching Godot binary (`STUDIO_GODOT_BIN` standard build for GDScript, the .NET build for C#), zips the output
+under `build/`, hosts the web build at `/play/<runId>/` with COOP/COEP headers, and proves it by loading the URL in
+headless Chromium and saving `screenshots/publish/web.png`. Results land as `publish.result` events, a Play button in
+the header, and download links.
+
 ## Event model
 
 Eight event types, defined once in `shared/src/index.ts`, persisted per run as append-only `events.jsonl`, served

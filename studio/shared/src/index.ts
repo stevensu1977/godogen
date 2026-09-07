@@ -8,7 +8,28 @@
  */
 
 export type EngineKind = 'claude' | 'codex';
-export type EngineName = 'godot' | 'bevy' | 'babylon';
+export type EngineName = 'godot' | 'godot-csharp' | 'bevy' | 'babylon';
+
+/** Publish targets. Phase 1 implements web, linux, windows; the rest are accepted and reported as unsupported. */
+export type PublishTarget = 'web' | 'linux' | 'windows' | 'macos' | 'android' | 'ios' | 'stream';
+export const PUBLISH_TARGETS: PublishTarget[] = ['web', 'linux', 'windows', 'macos', 'android', 'ios', 'stream'];
+export const IMPLEMENTED_TARGETS: PublishTarget[] = ['web', 'linux', 'windows'];
+
+export interface PublishResult {
+  target: PublishTarget;
+  ok: boolean;
+  /** Workspace-relative output (file or directory). */
+  path?: string;
+  /** Downloadable archive, workspace-relative. */
+  archive?: string;
+  /** Hosted URL for web builds (server-relative, e.g. /play/<runId>/). */
+  url?: string;
+  /** Verification screenshot, workspace-relative. */
+  screenshot?: string;
+  log: string;
+  durationMs: number;
+  finishedAt: string;
+}
 
 /** Coarse state of the agent, driving the "working" animation in the UI. Derived from tool events. */
 export type Phase =
@@ -81,6 +102,11 @@ export interface RunSummary {
   turns_history?: RunTurn[];
   /** Set after a restore; prepended to the next turn's instruction so the agent knows later changes are gone. */
   restoreNote?: string;
+  /** Publish targets chosen at creation; appended to the brief as constraints. */
+  targets?: PublishTarget[];
+  /** Latest publish result per target. */
+  publish?: Partial<Record<PublishTarget, PublishResult>>;
+  publishing?: boolean;
 }
 
 interface Base {
@@ -98,6 +124,9 @@ export type StudioEvent =
   | (Base & { type: 'turn.started'; turnId: string; index: number; text: string })
   /** The user restored the workspace to an earlier commit; Studio committed the restored tree as `commit`. */
   | (Base & { type: 'workspace.restored'; toHash: string; toShort: string; toSubject: string; turnIndex?: number; commit: string })
+  /** Studio packaged one target (Web/Linux/Windows...) — hosted URL, archive and proof screenshot when ok. */
+  | (Base & { type: 'publish.result'; result: PublishResult })
+  | (Base & { type: 'publish.started'; targets: PublishTarget[] })
   /** Assistant text for humans, streamed. `final` closes the message. */
   | (Base & { type: 'message'; messageId: string; delta: string; final?: boolean })
   | (Base & { type: 'phase'; phase: Phase; detail?: string })
@@ -124,6 +153,7 @@ export interface CreateRunRequest {
   budgetUsd?: number;
   /** Engine-specific model id; server default when omitted (STUDIO_CLAUDE_MODEL / STUDIO_CODEX_MODEL). */
   model?: string;
+  targets?: PublishTarget[];
 }
 
 export interface ReplyRequest { text: string }
@@ -149,6 +179,7 @@ export interface CommitDetail extends CommitSummary {
   diffTruncated: boolean;
 }
 export interface RestoreRequest { hash: string }
+export interface PublishRequest { targets?: PublishTarget[] }
 /** Body for POST /api/runs/:id/turns — a follow-up instruction on a run that is not running. */
 export interface TurnRequest { text: string; model?: string }
 
@@ -162,6 +193,8 @@ export interface TurnRequest { text: string; model?: string }
  *   GET  /api/runs/:id/artifacts           -> Artifact[]
  *   GET  /api/runs/:id/files/<path>        -> raw file from the workspace (code text, PNG, MP4, GLB)
  *   POST /api/runs/:id/turns               -> RunSummary (202) | 409 while running   (TurnRequest)
+ *   POST /api/runs/:id/publish             -> RunSummary (202) | 409 while running   (PublishRequest)
+ *   GET  /play/:id/*                       -> hosted web build (build/web) with COOP/COEP headers
  *   GET  /api/runs/:id/history             -> CommitSummary[]   (newest first)
  *   GET  /api/runs/:id/history/:hash       -> CommitDetail
  *   POST /api/runs/:id/restore             -> RunSummary | 409 while running   (RestoreRequest)

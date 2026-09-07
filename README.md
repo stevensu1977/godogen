@@ -16,7 +16,7 @@ A published repo is intentionally thin: a runtime manifest, a one-page engine gu
 
 - `prompts/runtime.md` — the runtime manifest
 - `asset-gen/` — the cross-engine asset-generation skill
-- `engines/babylon.md`, `engines/godot.md`, `engines/bevy.md` — per-engine guides
+- `engines/babylon.md`, `engines/godot.md` (GDScript), `engines/godot-csharp.md`, `engines/bevy.md` — per-engine guides
 - `guides/multiplayer.md` — cross-engine multiplayer guide (Colyseus only)
 - [publish.sh](publish.sh) — renders the runtime layout for the chosen engine and host agent
 - [studio/](studio/README.md) — GoScene (studio/): a server and web UI that publishes a workspace, runs Claude Code or Codex against a brief, and streams messages, tool calls, phases and artifacts (code, images, video, GLB) to the browser
@@ -25,7 +25,7 @@ Engine and host agent (Claude vs Codex) are publish-time render choices, not sep
 
 ## What the agent does
 
-- **Godot 4** — C#/.NET projects with build-time scene generation, runtime scripts, and Jolt physics.
+- **Godot 4** — GDScript projects (C# variant available) with build-time scene generation, Jolt physics, and export presets for Web/desktop publishing; see [docs/publishing.md](docs/publishing.md).
 - **Bevy** — Rust/Bevy projects with code-first ECS scenes and offscreen capture.
 - **Babylon.js** — TypeScript/Vite browser games served at a live URL.
 - **Asset generation** — Gemini for precise references and characters, xAI Grok for textures and simple objects, Tripo3D for image-to-3D and rigged biped animation; animated sprites via Grok video with loop detection and background removal.

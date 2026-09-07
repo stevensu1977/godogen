@@ -2,7 +2,7 @@
  * Reduces the StudioEvent stream into UI state: a run summary, an ordered timeline, artifacts,
  * cost and phase. Streaming message deltas are merged by messageId; tool results attach to their call.
  */
-import type { Artifact, Phase, RunStatus, RunSummary, StudioEvent } from '@goscene/shared';
+import type { Artifact, Phase, PublishResult, PublishTarget, RunStatus, RunSummary, StudioEvent } from '@goscene/shared';
 
 export type TimelineItem =
   | { kind: 'message'; key: string; messageId: string; text: string; final: boolean; ts: string }
@@ -12,7 +12,9 @@ export type TimelineItem =
   | { kind: 'log'; key: string; level: 'info' | 'warn' | 'error'; text: string; ts: string }
   | { kind: 'finished'; key: string; status: Exclude<RunStatus, 'queued' | 'running'>; summary?: string; error?: string; durationMs: number; ts: string; commit?: string; commitFiles?: number }
   | { kind: 'turn'; key: string; index: number; text: string; ts: string }
-  | { kind: 'restored'; key: string; toShort: string; toSubject: string; turnIndex?: number; commit: string; ts: string };
+  | { kind: 'restored'; key: string; toShort: string; toSubject: string; turnIndex?: number; commit: string; ts: string }
+  | { kind: 'publish'; key: string; result: PublishResult; ts: string }
+  | { kind: 'publish_started'; key: string; targets: PublishTarget[]; ts: string };
 
 export type Connection = 'connecting' | 'live' | 'reconnecting' | 'closed';
 
@@ -33,6 +35,8 @@ export interface RunState {
   connection: Connection;
   lastSeq: number;
   error?: string;
+  publish: Partial<Record<PublishTarget, PublishResult>>;
+  publishing: boolean;
 }
 
 export const initialRunState = (run?: RunSummary): RunState => ({
@@ -45,6 +49,8 @@ export const initialRunState = (run?: RunSummary): RunState => ({
   turns: run?.turns ?? 0,
   connection: 'connecting',
   lastSeq: 0,
+  publish: run?.publish ?? {},
+  publishing: !!run?.publishing,
 });
 
 export type Action =
@@ -66,7 +72,7 @@ export function reduce(state: RunState, action: Action): RunState {
   switch (action.type) {
     case 'run': {
       const active = action.run.status === 'running' || action.run.status === 'queued';
-      return { ...state, run: action.run, phase: state.items.length && !active ? state.phase : action.run.phase, costUsd: Math.max(state.costUsd, action.run.costUsd), turns: Math.max(state.turns, action.run.turns), finished: active ? undefined : state.finished };
+      return { ...state, run: action.run, phase: state.items.length && !active ? state.phase : action.run.phase, costUsd: Math.max(state.costUsd, action.run.costUsd), turns: Math.max(state.turns, action.run.turns), finished: active ? undefined : state.finished, publish: { ...state.publish, ...(action.run.publish ?? {}) }, publishing: !!action.run.publishing };
     }
     case 'artifacts': {
       // Initial load; merge with anything already seen from the stream.
@@ -133,6 +139,12 @@ function applyEvent(state: RunState, ev: StudioEvent, live: boolean): RunState {
       return { ...base, phase: 'waiting_input', pendingInput: { key, prompt: ev.prompt, options: ev.options }, items: [...base.items, { kind: 'needs_input', key, prompt: ev.prompt, options: ev.options, ts: ev.ts }] };
     case 'log':
       return { ...base, items: [...base.items, { kind: 'log', key, level: ev.level, text: ev.text, ts: ev.ts }] };
+    case 'publish.started':
+      return { ...base, publishing: true, items: [...base.items, { kind: 'publish_started', key, targets: ev.targets, ts: ev.ts }] };
+    case 'publish.result': {
+      const publish = { ...base.publish, [ev.result.target]: ev.result };
+      return { ...base, publish, publishing: false, items: [...base.items, { kind: 'publish', key, result: ev.result, ts: ev.ts }] };
+    }
     case 'workspace.restored':
       return { ...base, items: [...base.items, { kind: 'restored', key, toShort: ev.toShort, toSubject: ev.toSubject, turnIndex: ev.turnIndex, commit: ev.commit, ts: ev.ts }] };
     case 'turn.started': {
