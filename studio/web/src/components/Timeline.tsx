@@ -91,12 +91,19 @@ function Item({ item, runId, dispatch }: { item: TimelineItem; runId: string; di
     case 'log':
       return <div className={`tl-log ${item.level}`}><span className="tl-time">{timeOfDay(item.ts)}</span><span className="txt">{item.text}</span></div>;
     case 'needs_input': return <InputItem item={item} runId={runId} dispatch={dispatch} />;
+    case 'turn':
+      return (
+        <div className="tl-turn">
+          <span className="tl-time">{timeOfDay(item.ts)}</span>
+          <div className="box"><div className="h">Turn {item.index} · follow-up</div><div className="t">{item.text}</div></div>
+        </div>
+      );
     case 'finished':
       return (
         <div className="tl-finished">
           <span className="tl-time">{timeOfDay(item.ts)}</span>
           <div className={`box ${item.status}`}>
-            <div className="h">{item.status === 'finished' ? '✓ Run finished' : item.status === 'cancelled' ? '⏹ Run cancelled' : '✕ Run failed'} <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>in {shortDuration(item.durationMs)}</span></div>
+            <div className="h">{item.status === 'finished' ? '✓ Turn finished' : item.status === 'cancelled' ? '⏹ Turn cancelled' : '✕ Turn failed'} <span style={{ color: 'var(--muted)', fontWeight: 400, fontSize: 12 }}>in {shortDuration(item.durationMs)}</span></div>
             {item.summary && <div className="s">{item.summary}</div>}
             {item.error && <pre>{item.error}</pre>}
           </div>

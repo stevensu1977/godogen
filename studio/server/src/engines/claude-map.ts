@@ -19,9 +19,11 @@ export interface MapState {
   inputTokens: number;
   outputTokens: number;
   msgCounter: number;
+  /** Prefix making message ids unique across turns of one run. */
+  msgPrefix: string;
 }
-export function newMapState(): MapState {
-  return { textBlocks: new Map(), toolInputs: new Map(), toolNames: new Map(), toolStarted: new Map(), lastPhase: 'idle', turns: 0, inputTokens: 0, outputTokens: 0, msgCounter: 0 };
+export function newMapState(msgPrefix = ''): MapState {
+  return { textBlocks: new Map(), toolInputs: new Map(), toolNames: new Map(), toolStarted: new Map(), lastPhase: 'idle', turns: 0, inputTokens: 0, outputTokens: 0, msgCounter: 0, msgPrefix };
 }
 
 function toolTitle(name: string, input: Record<string, unknown>): string {
@@ -59,7 +61,7 @@ export function mapClaudeMessage(msg: any, st: MapState): Partial[] {
     case 'stream_event': {
       const ev = msg.event;
       if (ev?.type === 'content_block_start') {
-        if (ev.content_block?.type === 'text') { const id = `m${++st.msgCounter}`; st.textBlocks.set(ev.index, id); phase('thinking'); }
+        if (ev.content_block?.type === 'text') { const id = `${st.msgPrefix}m${++st.msgCounter}`; st.textBlocks.set(ev.index, id); phase('thinking'); }
         else if (ev.content_block?.type === 'tool_use') st.toolInputs.set(ev.index, { id: ev.content_block.id, name: ev.content_block.name, json: '' });
       } else if (ev?.type === 'content_block_delta') {
         if (ev.delta?.type === 'text_delta') { const id = st.textBlocks.get(ev.index); if (id && ev.delta.text) out.push({ type: 'message', messageId: id, delta: ev.delta.text }); }
@@ -77,7 +79,7 @@ export function mapClaudeMessage(msg: any, st: MapState): Partial[] {
       for (const block of m.content ?? []) {
         if (block.type === 'text' && block.text && st.textBlocks.size === 0 && !streamed(st)) {
           // Non-streaming producer (e.g. imported `claude -p` log without partial messages): emit whole text.
-          const id = `m${++st.msgCounter}`; out.push({ type: 'message', messageId: id, delta: block.text }); out.push({ type: 'message', messageId: id, delta: '', final: true }); phase('thinking');
+          const id = `${st.msgPrefix}m${++st.msgCounter}`; out.push({ type: 'message', messageId: id, delta: block.text }); out.push({ type: 'message', messageId: id, delta: '', final: true }); phase('thinking');
         } else if (block.type === 'tool_use' && !st.toolNames.has(block.id)) {
           out.push(...toolCall(block.id, block.name, block.input ?? {}, sub, st, phase));
         }

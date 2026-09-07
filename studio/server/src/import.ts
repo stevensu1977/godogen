@@ -17,8 +17,8 @@ const mgr = new RunManager();
 const id = `import-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
 const events: StudioEventInput[] = [];
 let brief = ''; let cost = 0; let turns = 0; let first: string | undefined; let last: string | undefined; let sessionId: string | undefined; let summary: string | undefined;
-for (const file of logs) {
-  const st = newMapState();
+for (const [li, file] of logs.entries()) {
+  const st = newMapState(`s${li + 1}-`);
   for (const line of readFileSync(file, 'utf-8').split('\n')) {
     if (!line.trim()) continue; let msg: any; try { msg = JSON.parse(line); } catch { continue; }
     if (msg.type === 'user' && typeof msg.message?.content === 'string' && !brief) brief = msg.message.content;
@@ -34,6 +34,6 @@ for (const a of mgr.scanArtifacts(workspace)) events.push({ type: 'artifact', ar
 events.push({ type: 'phase', phase: 'done' });
 events.push({ type: 'run.finished', status: 'finished', costUsd: cost, turns, durationMs: first && last ? Date.parse(last) - Date.parse(first) : 0, summary });
 if (!brief && existsSync(join(workspace, 'BRIEF.md'))) brief = readFileSync(join(workspace, 'BRIEF.md'), 'utf-8');
-const run: RunSummary = { id, title, brief: brief || `(imported from ${logs.join(', ')})`, engine: 'godot', agent: 'claude', status: 'finished', phase: 'done', createdAt: first ?? new Date().toISOString(), startedAt: first, finishedAt: last, costUsd: cost, turns, workspace, sessionId, artifactCount: 0 };
+const run: RunSummary = { id, title, brief: brief || `(imported from ${logs.join(', ')})`, engine: 'godot', agent: 'claude', status: 'finished', phase: 'done', createdAt: first ?? new Date().toISOString(), startedAt: first, finishedAt: last, costUsd: cost, turns, workspace, sessionId, artifactCount: 0, turns_history: logs.map((f, i) => ({ id: `imported-${i + 1}`, index: i + 1, text: `(imported session ${f.split('/').pop()})`, startedAt: first ?? '', finishedAt: last, status: 'finished' as const, costUsd: 0 })) };
 mgr.register(run, [{ type: 'run.started', run }, ...events]);
 console.log(`imported ${id}: ${events.length} events, $${cost.toFixed(2)}, ${mgr.artifacts(id).length} artifacts, workspace ${workspace}`);

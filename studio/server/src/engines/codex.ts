@@ -8,14 +8,15 @@ import { childEnv, tail, type Engine, type EngineResult, type EngineStart } from
  */
 export const codexEngine: Engine = {
   kind: 'codex',
-  run({ workspace, brief, model, emit, onSession, signal }: EngineStart): Promise<EngineResult> {
+  run({ workspace, prompt, resumeSessionId, model, emit, onSession, signal }: EngineStart): Promise<EngineResult> {
     return new Promise((resolve) => {
       const t0 = Date.now();
-      let turns = 0; let costUsd = 0; let summary = ''; let msgN = 0;
+      let turns = 0; let costUsd = 0; let summary = ''; let msgN = 0; const msgPrefix = `${Date.now().toString(36)}-`;
       const m = model ?? process.env.STUDIO_CODEX_MODEL;
-      const args = ['exec', '--json', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '-C', workspace, ...(m ? ['-m', m] : []), '-'];
+      const common = ['--json', '--dangerously-bypass-approvals-and-sandbox', '--skip-git-repo-check', '-C', workspace, ...(m ? ['-m', m] : [])];
+      const args = resumeSessionId ? ['exec', 'resume', resumeSessionId, ...common, '-'] : ['exec', ...common, '-'];
       const child = spawn('codex', args, { env: childEnv(), cwd: workspace, stdio: ['pipe', 'pipe', 'pipe'] });
-      child.stdin.end(brief);
+      child.stdin.end(prompt);
       signal.addEventListener('abort', () => child.kill('SIGTERM'), { once: true });
       let buf = '';
       child.stdout.on('data', (d) => {
@@ -30,7 +31,7 @@ export const codexEngine: Engine = {
           else if (t === 'turn.completed') { const u = ev.usage ?? {}; emit({ type: 'cost', costUsd, turns, inputTokens: u.input_tokens, outputTokens: u.output_tokens }); }
           else if (t === 'item.started' || t === 'item.completed') {
             const it = ev.item ?? {}; const kind = it.type as string; const id = it.id ?? `codex-${turns}`;
-            if (kind === 'agent_message' && t === 'item.completed') { const mid = `m${++msgN}`; summary = it.text ?? ''; emit({ type: 'message', messageId: mid, delta: it.text ?? '' }); emit({ type: 'message', messageId: mid, delta: '', final: true }); }
+            if (kind === 'agent_message' && t === 'item.completed') { const mid = `${msgPrefix}m${++msgN}`; summary = it.text ?? ''; emit({ type: 'message', messageId: mid, delta: it.text ?? '' }); emit({ type: 'message', messageId: mid, delta: '', final: true }); }
             else if (kind === 'command_execution') {
               if (t === 'item.started') { turns++; const input = { command: it.command ?? '' }; emit({ type: 'tool.call', toolCallId: id, tool: 'shell', title: String(it.command ?? '').split('\n')[0].slice(0, 120), input }); emit({ type: 'phase', phase: phaseForTool('shell', input) }); }
               else emit({ type: 'tool.result', toolCallId: id, ok: (it.exit_code ?? 0) === 0, output: tail(it.aggregated_output ?? '') });

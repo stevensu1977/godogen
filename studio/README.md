@@ -38,6 +38,13 @@ Import an existing godogen run (workspace + `claude -p --output-format stream-js
 cd studio/server && npm run import -- ~/duckov ~/duckov/run.stream.jsonl "Duckov" ~/duckov/run2.stream.jsonl
 ```
 
+## Follow-up turns
+
+A run is a workspace plus a series of turns. Turn 1 is the brief; the composer under the timeline sends further
+instructions (`POST /api/runs/:id/turns`) while the run is not running. The engine session is resumed (Claude
+`resume`, Codex `exec resume`) so the agent keeps its memory of earlier turns; events append to the same log with a
+`turn.started` marker, cost accumulates across turns, and `run.finished` closes each turn rather than the run.
+
 ## Event model
 
 Eight event types, defined once in `shared/src/index.ts`, persisted per run as append-only `events.jsonl`, served
@@ -57,7 +64,7 @@ wanted, is an output mapping from these events.
 
 ## Not done yet
 
-- `needs_input` / `POST reply`: engines run unattended; interactive turns are not wired.
+- `needs_input` / `POST reply`: engines run unattended within a turn; steering happens between turns via the composer.
 - Codex engine mapping is written against the `codex exec --json` item shapes but has not been run.
 - Budget guard only sees cost at the end of a Claude run (the SDK reports total cost in the result); a
   per-turn estimate from token usage would be needed to cancel mid-run.

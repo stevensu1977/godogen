@@ -43,6 +43,17 @@ export interface Artifact {
 
 export type RunStatus = 'queued' | 'running' | 'finished' | 'failed' | 'cancelled';
 
+/** One engine session on the run's workspace. Turn 1 is the brief; later turns are follow-up instructions. */
+export interface RunTurn {
+  id: string;
+  index: number;
+  text: string;
+  startedAt: string;
+  finishedAt?: string;
+  status: RunStatus;
+  costUsd: number;
+}
+
 export interface RunSummary {
   id: string;
   title: string;
@@ -62,6 +73,8 @@ export interface RunSummary {
   sessionId?: string;
   model?: string;
   artifactCount: number;
+  /** Turn history; `costUsd` above is the sum over turns. */
+  turns_history?: RunTurn[];
 }
 
 interface Base {
@@ -73,7 +86,10 @@ interface Base {
 
 export type StudioEvent =
   | (Base & { type: 'run.started'; run: RunSummary })
-  | (Base & { type: 'run.finished'; status: Exclude<RunStatus, 'queued' | 'running'>; costUsd: number; turns: number; durationMs: number; summary?: string; error?: string })
+  /** A turn ended. Not terminal for the run: a follow-up turn may start later (see turn.started). */
+  | (Base & { type: 'run.finished'; status: Exclude<RunStatus, 'queued' | 'running'>; costUsd: number; turns: number; durationMs: number; summary?: string; error?: string; turnId?: string })
+  /** A follow-up turn started on the same workspace, resuming the engine session when possible. */
+  | (Base & { type: 'turn.started'; turnId: string; index: number; text: string })
   /** Assistant text for humans, streamed. `final` closes the message. */
   | (Base & { type: 'message'; messageId: string; delta: string; final?: boolean })
   | (Base & { type: 'phase'; phase: Phase; detail?: string })
@@ -103,6 +119,8 @@ export interface CreateRunRequest {
 }
 
 export interface ReplyRequest { text: string }
+/** Body for POST /api/runs/:id/turns — a follow-up instruction on a run that is not running. */
+export interface TurnRequest { text: string; model?: string }
 
 /**
  * HTTP API (server, default port 4700):
@@ -113,6 +131,7 @@ export interface ReplyRequest { text: string }
  *                                             Each SSE frame: `id: <seq>` and `data: <StudioEvent JSON>`.
  *   GET  /api/runs/:id/artifacts           -> Artifact[]
  *   GET  /api/runs/:id/files/<path>        -> raw file from the workspace (code text, PNG, MP4, GLB)
+ *   POST /api/runs/:id/turns               -> RunSummary (202) | 409 while running   (TurnRequest)
  *   POST /api/runs/:id/cancel              -> RunSummary
  *   POST /api/runs/:id/reply               -> 202              (ReplyRequest; answers a needs_input)
  */

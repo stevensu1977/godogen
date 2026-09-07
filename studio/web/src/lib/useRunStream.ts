@@ -9,10 +9,11 @@ import { isTerminal } from './format';
  * (sending Last-Event-ID); we close it ourselves once `run.finished` arrives so a finished run
  * doesn't loop reconnecting after the server ends the stream.
  */
-export function useRunStream(runId: string): [RunState, React.Dispatch<Action>] {
+export function useRunStream(runId: string): [RunState, React.Dispatch<Action>, () => void] {
   const [state, dispatch] = useReducer(reduce, undefined, () => initialRunState());
   const stateRef = useRef(state);
   stateRef.current = state;
+  const reopenRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let disposed = false;
@@ -23,8 +24,9 @@ export function useRunStream(runId: string): [RunState, React.Dispatch<Action>] 
     api.getRun(runId).then((run) => !disposed && dispatch({ type: 'run', run })).catch((e) => !disposed && dispatch({ type: 'connection', connection: 'closed', error: String(e.message ?? e) }));
     api.listArtifacts(runId).then((artifacts) => !disposed && dispatch({ type: 'artifacts', artifacts })).catch(() => undefined);
 
-    const open = () => {
-      es = new EventSource(api.eventsUrl(runId));
+    const open = (after?: number) => {
+      es?.close();
+      es = new EventSource(api.eventsUrl(runId, after));
       es.onopen = () => {
         replaying = true;
         dispatch({ type: 'connection', connection: 'live' });
@@ -49,6 +51,8 @@ export function useRunStream(runId: string): [RunState, React.Dispatch<Action>] 
       };
     };
     open();
+    // After a follow-up turn is posted the server stream is live again: resubscribe from the last seq.
+    reopenRef.current = () => { if (!disposed) { replaying = true; open(stateRef.current.lastSeq); } };
 
     return () => {
       disposed = true;
@@ -57,7 +61,7 @@ export function useRunStream(runId: string): [RunState, React.Dispatch<Action>] 
     };
   }, [runId]);
 
-  return [state, dispatch];
+  return [state, dispatch, () => reopenRef.current()];
 }
 
 export function useTicker(active: boolean, intervalMs = 1000): number {

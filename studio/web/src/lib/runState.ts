@@ -10,7 +10,8 @@ export type TimelineItem =
   | { kind: 'phase'; key: string; phase: Phase; detail?: string; ts: string }
   | { kind: 'needs_input'; key: string; prompt: string; options?: string[]; ts: string; answered?: string }
   | { kind: 'log'; key: string; level: 'info' | 'warn' | 'error'; text: string; ts: string }
-  | { kind: 'finished'; key: string; status: Exclude<RunStatus, 'queued' | 'running'>; summary?: string; error?: string; durationMs: number; ts: string };
+  | { kind: 'finished'; key: string; status: Exclude<RunStatus, 'queued' | 'running'>; summary?: string; error?: string; durationMs: number; ts: string }
+  | { kind: 'turn'; key: string; index: number; text: string; ts: string };
 
 export type Connection = 'connecting' | 'live' | 'reconnecting' | 'closed';
 
@@ -62,8 +63,10 @@ function upsertArtifact(list: Artifact[], a: Artifact, change: 'added' | 'update
 
 export function reduce(state: RunState, action: Action): RunState {
   switch (action.type) {
-    case 'run':
-      return { ...state, run: action.run, phase: state.items.length ? state.phase : action.run.phase, costUsd: Math.max(state.costUsd, action.run.costUsd), turns: Math.max(state.turns, action.run.turns) };
+    case 'run': {
+      const active = action.run.status === 'running' || action.run.status === 'queued';
+      return { ...state, run: action.run, phase: state.items.length && !active ? state.phase : action.run.phase, costUsd: Math.max(state.costUsd, action.run.costUsd), turns: Math.max(state.turns, action.run.turns), finished: active ? undefined : state.finished };
+    }
     case 'artifacts': {
       // Initial load; merge with anything already seen from the stream.
       let list = state.artifacts;
@@ -129,6 +132,10 @@ function applyEvent(state: RunState, ev: StudioEvent, live: boolean): RunState {
       return { ...base, phase: 'waiting_input', pendingInput: { key, prompt: ev.prompt, options: ev.options }, items: [...base.items, { kind: 'needs_input', key, prompt: ev.prompt, options: ev.options, ts: ev.ts }] };
     case 'log':
       return { ...base, items: [...base.items, { kind: 'log', key, level: ev.level, text: ev.text, ts: ev.ts }] };
+    case 'turn.started': {
+      const run = base.run ? { ...base.run, status: 'running' as RunStatus, phase: 'thinking' as Phase, finishedAt: undefined } : base.run;
+      return { ...base, run, phase: 'thinking', phaseDetail: undefined, finished: undefined, pendingInput: undefined, items: [...base.items, { kind: 'turn', key, index: ev.index, text: ev.text, ts: ev.ts }] };
+    }
     case 'run.finished': {
       const phase: Phase = ev.status === 'finished' ? 'done' : 'failed';
       const run = base.run ? { ...base.run, status: ev.status, phase, costUsd: ev.costUsd, turns: ev.turns, finishedAt: ev.ts } : base.run;

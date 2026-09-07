@@ -5,7 +5,7 @@ import { streamSSE } from 'hono/streaming';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { extname, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
-import { API_PORT, type CreateRunRequest } from '@godogen/shared';
+import { API_PORT, type CreateRunRequest, type TurnRequest } from '@godogen/shared';
 import { RunManager, RUNS_ROOT } from './runs.js';
 
 const runs = new RunManager();
@@ -21,6 +21,13 @@ app.post('/api/runs', async c => {
 });
 app.get('/api/runs/:id', c => { const r = runs.get(c.req.param('id')); return r ? c.json(r.summary) : c.json({ error: 'not found' }, 404); });
 app.post('/api/runs/:id/cancel', c => { const s = runs.cancel(c.req.param('id')); return s ? c.json(s) : c.json({ error: 'not found' }, 404); });
+app.post('/api/runs/:id/turns', async c => {
+  const body = (await c.req.json()) as TurnRequest;
+  if (!body?.text?.trim()) return c.json({ error: 'text is required' }, 400);
+  const s = runs.addTurn(c.req.param('id'), body);
+  if (s === 'running') return c.json({ error: 'run is in progress; cancel it first or wait' }, 409);
+  return s ? c.json(s, 202) : c.json({ error: 'not found' }, 404);
+});
 app.post('/api/runs/:id/resume', c => { const s = runs.resume(c.req.param('id')); return s ? c.json(s) : c.json({ error: 'not found or running' }, 404); });
 app.post('/api/runs/:id/reply', c => c.json({ error: 'interactive replies are not wired yet' }, 501));
 app.get('/api/runs/:id/artifacts', c => runs.get(c.req.param('id')) ? c.json(runs.artifacts(c.req.param('id'))) : c.json({ error: 'not found' }, 404));

@@ -4,7 +4,8 @@ export type Emit = (partial: StudioEventInput) => void;
 
 export interface EngineStart {
   workspace: string;
-  brief: string;
+  /** The instruction for this turn (turn 1: the brief). */
+  prompt: string;
   resumeSessionId?: string;
   model?: string;
   emit: Emit;
